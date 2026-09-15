@@ -5,11 +5,7 @@ import { useSesi } from "@/components/SesiProvider";
 import { BottomNav, TopBar } from "@/components/nav/Nav";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
-  const { profile, siap } = useSesi();
-
-  if (!siap) {
-    return <main className="flex-1 p-4 text-sm text-ink-soft">Memuat…</main>;
-  }
+  const { profile } = useSesi();
 
   if (!profile) {
     return (

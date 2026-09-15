@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSesi } from "@/components/SesiProvider";
 import OfficeMap from "@/components/map/OfficeMapDynamic";
 import { Badge } from "@/components/ui/Badge";
@@ -9,16 +9,8 @@ import { Card, CardTitle } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Spinner";
 import { Toast } from "@/components/ui/Toast";
 import { jarakKeKantor } from "@/lib/geo";
-import {
-  cariAttendance,
-  getAttendance,
-  getProfiles,
-  getSettings,
-  prosesAbsen,
-} from "@/lib/mockStore";
-import { useMockVersi } from "@/lib/useMockStore";
-import { useTanggalWita } from "@/lib/useTanggalWita";
-import type { GeoPoint } from "@/types";
+import { getTanggalWITA } from "@/lib/time";
+import type { Attendance, GeoPoint, Settings } from "@/types";
 
 type TipeToast = "sukses" | "error" | "info";
 
@@ -28,32 +20,31 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(false);
   const [gagal, setGagal] = useState(false);
   const [toast, setToast] = useState<{ pesan: string; tipe: TipeToast } | null>(null);
-  const versi = useMockVersi();
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [absenHariIni, setAbsenHariIni] = useState<Attendance | null>(null);
+  const [riwayat, setRiwayat] = useState<Attendance[]>([]);
+  const [versi, setVersi] = useState(0);
 
-  // versi sengaja jadi pemicu: mockStore bukan sumber reaktif.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const settings = useMemo(() => getSettings(), [versi]);
-  const namaMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const p of getProfiles()) m.set(p.id, p.nama);
-    return m;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [versi]);
+  const hari = getTanggalWITA();
 
-  const hari = useTanggalWita();
-  const absenHariIni =
-    profile && hari ? cariAttendance(profile.id, hari) : undefined;
-  const sudahMasuk = Boolean(absenHariIni?.jam_masuk);
-  const sudahPulang = Boolean(absenHariIni?.jam_pulang);
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((j) => setSettings(j.data ?? null))
+      .catch(() => {});
+  }, []);
 
-  const riwayat = useMemo(() => {
-    if (!profile) return [];
-    const semua = getAttendance();
-    const milik =
-      profile.role === "admin" ? semua : semua.filter((a) => a.profile_id === profile.id);
-    return [...milik].sort((a, b) => (a.tanggal < b.tanggal ? 1 : -1)).slice(0, 10);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, versi]);
+  useEffect(() => {
+    if (!profile) return;
+    fetch("/api/attendance/history")
+      .then((r) => r.json())
+      .then((j) => {
+        const rows: Attendance[] = j.data ?? [];
+        setRiwayat(rows.slice(0, 10));
+        setAbsenHariIni(rows.find((a) => a.tanggal === hari) ?? null);
+      })
+      .catch(() => {});
+  }, [profile, hari, versi]);
 
   const ambilLokasi = useCallback(() => {
     if (!navigator.geolocation) {
@@ -70,7 +61,6 @@ export default function AttendancePage() {
           akurasi: pos.coords.accuracy,
         });
         setLoading(false);
-        setGagal(false);
       },
       (err) => {
         setLoading(false);
@@ -96,14 +86,24 @@ export default function AttendancePage() {
     );
   }, []);
 
-  function lakukan(tipe: "check-in" | "check-out") {
-    if (!profile || !geo) return;
-    const hasil = prosesAbsen(profile, tipe, geo);
-    setToast({ pesan: hasil.pesan, tipe: hasil.sukses ? "sukses" : "error" });
+  async function lakukan(tipe: "check-in" | "check-out") {
+    if (!geo) return;
+    setLoading(true);
+    const res = await fetch(`/api/attendance/${tipe}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(geo),
+    });
+    const j = await res.json().catch(() => ({}));
+    setToast({ pesan: j.pesan ?? "Selesai.", tipe: res.ok ? "sukses" : "error" });
+    setLoading(false);
+    if (res.ok) setVersi((n) => n + 1);
   }
 
-  if (!profile) return null;
+  if (!profile || !settings) return null;
 
+  const sudahMasuk = Boolean(absenHariIni?.jam_masuk);
+  const sudahPulang = Boolean(absenHariIni?.jam_pulang);
   const jarak = geo
     ? Math.round(jarakKeKantor(geo.lat, geo.lng, settings.latitude, settings.longitude))
     : null;
@@ -113,8 +113,7 @@ export default function AttendancePage() {
       <div>
         <h1 className="text-base font-extrabold text-ink">Absen</h1>
         <p className="text-xs text-ink-soft">
-          {hari ? `${hari} · WITA · ` : ""}shift {profile.jam_masuk_standar}-
-          {profile.jam_pulang_standar}
+          {hari} · WITA · shift {profile.jam_masuk_standar}-{profile.jam_pulang_standar}
         </p>
       </div>
 
@@ -174,13 +173,13 @@ export default function AttendancePage() {
         )}
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button onClick={() => lakukan("check-in")} disabled={!geo || sudahMasuk}>
+          <Button onClick={() => lakukan("check-in")} disabled={!geo || loading || sudahMasuk}>
             Check-in
           </Button>
           <Button
             varian="outline"
             onClick={() => lakukan("check-out")}
-            disabled={!geo || !sudahMasuk || sudahPulang}
+            disabled={!geo || loading || !sudahMasuk || sudahPulang}
           >
             Check-out
           </Button>
@@ -205,7 +204,6 @@ export default function AttendancePage() {
                 <div>
                   <p className="font-semibold text-ink">{a.tanggal}</p>
                   <p className="text-xs text-ink-soft">
-                    {profile.role === "admin" && `${namaMap.get(a.profile_id) ?? "-"} · `}
                     {a.jam_masuk ?? "-"} → {a.jam_pulang ?? "-"}
                   </p>
                 </div>

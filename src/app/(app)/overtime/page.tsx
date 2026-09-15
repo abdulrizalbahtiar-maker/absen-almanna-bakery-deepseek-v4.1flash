@@ -1,24 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSesi } from "@/components/SesiProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Field, Input, Textarea } from "@/components/ui/Input";
 import { Toast } from "@/components/ui/Toast";
-import {
-  ajukanLembur,
-  editLembur,
-  getOvertime,
-  getProfiles,
-  hapusLembur,
-  keputusanAdmin,
-} from "@/lib/mockStore";
-import { hitungTotalJam } from "@/lib/overtime";
 import { formatRupiah } from "@/lib/format";
-import { useMockVersi } from "@/lib/useMockStore";
-import { useTanggalWita } from "@/lib/useTanggalWita";
+import { hitungTotalJam } from "@/lib/overtime";
+import { getTanggalWITA } from "@/lib/time";
 import type { OvertimeRequest, OvertimeStatus } from "@/types";
 
 type TipeToast = "sukses" | "error" | "info";
@@ -32,74 +23,78 @@ function toneStatus(status: OvertimeStatus) {
 
 export default function OvertimePage() {
   const { profile } = useSesi();
-  const versi = useMockVersi();
-  const hariIni = useTanggalWita();
   const [form, setForm] = useState(FORM_KOSONG);
+  const [daftar, setDaftar] = useState<OvertimeRequest[]>([]);
+  const [namaMap, setNamaMap] = useState<Map<string, string>>(new Map());
   const [toast, setToast] = useState<{ pesan: string; tipe: TipeToast } | null>(null);
+  const [versi, setVersi] = useState(0);
 
-  const namaMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const p of getProfiles()) m.set(p.id, p.nama);
-    return m;
+  const hariIni = getTanggalWITA();
+  const admin = profile?.role === "admin";
+
+  useEffect(() => {
+    fetch("/api/profiles")
+      .then((r) => r.json())
+      .then((j) => {
+        const m = new Map<string, string>();
+        for (const p of j.data ?? []) m.set(p.id, p.nama);
+        setNamaMap(m);
+      })
+      .catch(() => {});
   }, []);
 
-  const daftar = useMemo(() => {
-    const semua = getOvertime();
-    const milik =
-      profile?.role === "admin" ? semua : semua.filter((o) => o.profile_id === profile?.id);
-    return [...milik].sort((a, b) => (a.tanggal < b.tanggal ? 1 : -1));
-    // versi sengaja jadi pemicu: mockStore bukan sumber reaktif.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, versi]);
+  useEffect(() => {
+    fetch("/api/overtime")
+      .then((r) => r.json())
+      .then((j) => setDaftar(j.data ?? []))
+      .catch(() => {});
+  }, [versi]);
+
+  const totalJamForm = useMemo(
+    () => (form.jam_mulai && form.jam_selesai ? hitungTotalJam(form.jam_mulai, form.jam_selesai) : 0),
+    [form.jam_mulai, form.jam_selesai],
+  );
 
   if (!profile) return null;
-  const admin = profile.role === "admin";
-  const totalJamForm =
-    form.jam_mulai && form.jam_selesai
-      ? hitungTotalJam(form.jam_mulai, form.jam_selesai)
-      : 0;
 
-  function kirim() {
-    if (!profile) return;
+  async function kirim() {
     const payload = {
       tanggal: form.tanggal,
       jam_mulai: form.jam_mulai,
       jam_selesai: form.jam_selesai,
       alasan: form.alasan,
     };
-    const hasil = form.id
-      ? editLembur(form.id, profile.id, payload)
-      : ajukanLembur(profile.id, payload);
-    setToast({ pesan: hasil.pesan, tipe: hasil.sukses ? "sukses" : "error" });
-    if (hasil.sukses) {
-      setForm(FORM_KOSONG);
-    }
-  }
-
-  function mulaiEdit(o: OvertimeRequest) {
-    setForm({
-      id: o.id,
-      tanggal: o.tanggal,
-      jam_mulai: o.jam_mulai.slice(0, 5),
-      jam_selesai: o.jam_selesai.slice(0, 5),
-      alasan: o.alasan,
+    const res = await fetch(form.id ? `/api/overtime/${form.id}` : "/api/overtime", {
+      method: form.id ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
-  }
-
-  function hapus(o: OvertimeRequest) {
-    if (!profile) return;
-    const hasil = hapusLembur(o.id, profile.id);
-    setToast({ pesan: hasil.pesan, tipe: hasil.sukses ? "sukses" : "error" });
-  }
-
-  function putuskan(o: OvertimeRequest, aksi: "Approve" | "Reject") {
-    if (!profile) return;
-    let catatan = "";
-    if (aksi === "Reject") {
-      catatan = window.prompt("Catatan penolakan") ?? "";
+    const j = await res.json().catch(() => ({}));
+    setToast({ pesan: j.pesan ?? "Selesai.", tipe: res.ok ? "sukses" : "error" });
+    if (res.ok) {
+      setForm(FORM_KOSONG);
+      setVersi((n) => n + 1);
     }
-    const hasil = keputusanAdmin(o.id, aksi, catatan, profile.id);
-    setToast({ pesan: hasil.pesan, tipe: hasil.sukses ? "sukses" : "error" });
+  }
+
+  async function hapus(o: OvertimeRequest) {
+    const res = await fetch(`/api/overtime/${o.id}`, { method: "DELETE" });
+    const j = await res.json().catch(() => ({}));
+    setToast({ pesan: j.pesan ?? "Selesai.", tipe: res.ok ? "sukses" : "error" });
+    if (res.ok) setVersi((n) => n + 1);
+  }
+
+  async function putuskan(o: OvertimeRequest, action: "Approve" | "Reject") {
+    let catatan = "";
+    if (action === "Reject") catatan = window.prompt("Catatan penolakan") ?? "";
+    const res = await fetch(`/api/overtime/${o.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, catatan }),
+    });
+    const j = await res.json().catch(() => ({}));
+    setToast({ pesan: j.pesan ?? "Selesai.", tipe: res.ok ? "sukses" : "error" });
+    if (res.ok) setVersi((n) => n + 1);
   }
 
   return (
@@ -114,7 +109,7 @@ export default function OvertimePage() {
               <Input
                 type="date"
                 value={form.tanggal}
-                max={hariIni ?? undefined}
+                max={hariIni}
                 onChange={(e) => setForm({ ...form, tanggal: e.target.value })}
               />
             </Field>
@@ -189,7 +184,18 @@ export default function OvertimePage() {
 
                 {!admin && o.status === "Pending" && (
                   <div className="mt-2 flex gap-2">
-                    <Button varian="outline" onClick={() => mulaiEdit(o)}>
+                    <Button
+                      varian="outline"
+                      onClick={() =>
+                        setForm({
+                          id: o.id,
+                          tanggal: o.tanggal,
+                          jam_mulai: o.jam_mulai.slice(0, 5),
+                          jam_selesai: o.jam_selesai.slice(0, 5),
+                          alasan: o.alasan,
+                        })
+                      }
+                    >
                       Ubah
                     </Button>
                     <Button varian="ghost" onClick={() => hapus(o)}>

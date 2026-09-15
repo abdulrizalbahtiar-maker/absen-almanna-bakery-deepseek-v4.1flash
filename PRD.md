@@ -5,7 +5,7 @@
 | Field | Nilai |
 |-------|-------|
 | Nama Proyek | Sistem Absensi Al Manna Bakery |
-| Versi PRD | 1.5 (revisi: login email+password, kolom password mode mock, tambah karyawan sertakan password) |
+| Versi PRD | 2.0 (backend Supabase aktif: Auth riil, RLS, API routes, Excel server-side, mode mock dihapus) |
 | Tanggal | 2026-09-14 |
 | Bahasa | Indonesia |
 | Status | Approved untuk implementasi |

@@ -2,19 +2,62 @@
 
 Aplikasi absensi GPS + rekap keterlambatan & lembur. Lihat `PRD.md` sebagai acuan.
 
-## Status
+## Stack
 
-Fase 1-4 selesai (frontend + mode mock). Fase 5-7 (Supabase, settings backend, deploy) belum dikerjakan.
+Next.js 16 (App Router) + TypeScript + Tailwind v4 + Leaflet + Supabase (Auth + Postgres + RLS) + exceljs.
 
-## Menjalankan
+---
+
+## 1. Prasyarat
+
+- Node.js 20.9+
+- Akun Supabase (project kosong)
+
+## 2. Setup environment
 
 ```bash
-cp .env.local.example .env.local   # sudah di-set NEXT_PUBLIC_MOCK_MODE=true
+cp .env.local.example .env.local
+```
+
+Isi `.env.local`:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+```
+
+`SUPABASE_SERVICE_ROLE_KEY` hanya dipakai server. Jangan expose ke browser / commit ke git.
+
+## 3. Jalankan migrasi database
+
+Buka **Supabase Dashboard → SQL Editor**, tempel seluruh isi
+`supabase/migrations/0001_init.sql`, lalu **Run**.
+
+Skrip ini membuat tabel `profiles`, `settings`, `attendance`, `overtime_requests`,
+`activity_logs`, views rekap, fungsi `is_admin()`, dan semua RLS policy.
+
+## 4. Seed akun awal (9 akun)
+
+```bash
+node --env-file=.env.local scripts/seed.mjs
+```
+
+Membuat 1 admin + 8 karyawan. Password default semua akun: `password123`.
+Akun admin: `almannabakery2@gmail.com`.
+
+Aman dijalankan berulang (akun yang sudah ada dilewati).
+
+## 5. Jalankan aplikasi
+
+```bash
 npm install
 npm run dev
 ```
 
-Buka `/login`, pilih akun mock (9 akun), lalu masuk.
+Buka http://localhost:3000, login dengan email + password.
+
+> Geolocation hanya berfungsi di HTTPS atau `localhost`.
 
 ## Perintah
 
@@ -27,13 +70,17 @@ npm run test       # vitest
 
 ## Struktur
 
-- `src/lib/` — logika murni (geo, late, overtime, time), mock data/store, excel
+- `src/lib/` — logika murni (geo, late, overtime, denda, time, format)
+- `src/lib/supabase/` — klien browser/server/admin + helper auth
 - `src/components/map/OfficeMap.tsx` — Leaflet (dynamic, ssr:false)
 - `src/app/(app)/` — dashboard, attendance, overtime, reports, settings
-- `src/proxy.ts` — proteksi route + role (Next.js 16: pengganti middleware)
-- `tests/` — unit test rumus bab 8 + integrasi mockStore
+- `src/app/api/` — route handler (absen, lembur, reports, settings, employees)
+- `src/proxy.ts` — proteksi route + refresh sesi Supabase
+- `supabase/migrations/` — skema SQL
+- `scripts/seed.mjs` — seed akun awal
+- `tests/` — unit test logika murni
 
 ## Catatan versi
 
-Next.js 16.3.5: `middleware` → `proxy`, `next lint` dihapus, Turbopack default,
-`cookies()`/`headers()` async. Mode mock diatur `NEXT_PUBLIC_MOCK_MODE`.
+Next.js 16: `middleware` → `proxy`, `next lint` dihapus (pakai `eslint`),
+Turbopack default, `cookies()`/`headers()` async.

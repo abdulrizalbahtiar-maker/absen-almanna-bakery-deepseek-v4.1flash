@@ -3,6 +3,8 @@ import type { LateReportRow, OvertimeReportRow } from "@/types";
 import { namaFileRekap } from "./time";
 
 const RUPIAH = '"Rp"#,##0';
+const TIPE_XLSX =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 function setHeader(row: ExcelJS.Row, labels: string[]) {
   row.values = labels;
@@ -20,10 +22,11 @@ function setHeader(row: ExcelJS.Row, labels: string[]) {
   });
 }
 
-export async function buatExcelRekap(
+/** Bangun workbook 2 sheet (inti, dipakai client & server). */
+function buatWorkbook(
   keterlambatan: LateReportRow[],
   lembur: OvertimeReportRow[],
-): Promise<Blob> {
+): ExcelJS.Workbook {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Absensi Al Manna Bakery";
   wb.created = new Date();
@@ -129,10 +132,25 @@ export async function buatExcelRekap(
   });
   s2.views = [{ state: "frozen", ySplit: 1 }];
 
-  const buffer = await wb.xlsx.writeBuffer();
-  return new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
+  return wb;
+}
+
+/** Buffer .xlsx untuk dipakai server-side (route handler). */
+export async function buatBufferExcel(
+  keterlambatan: LateReportRow[],
+  lembur: OvertimeReportRow[],
+): Promise<ArrayBuffer> {
+  const wb = buatWorkbook(keterlambatan, lembur);
+  return (await wb.xlsx.writeBuffer()) as ArrayBuffer;
+}
+
+/** Blob .xlsx untuk diunduh dari browser. */
+export async function buatExcelRekap(
+  keterlambatan: LateReportRow[],
+  lembur: OvertimeReportRow[],
+): Promise<Blob> {
+  const buffer = await buatBufferExcel(keterlambatan, lembur);
+  return new Blob([buffer], { type: TIPE_XLSX });
 }
 
 export function unduhBlob(blob: Blob, namaFile: string) {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Nunito } from "next/font/google";
 import "./globals.css";
 import { SesiProvider } from "@/components/SesiProvider";
+import { getProfileSaya } from "@/lib/supabase/auth";
 
 const nunito = Nunito({
   variable: "--font-nunito",
@@ -19,11 +20,13 @@ export const viewport = {
   maximumScale: 1,
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const profile = await getProfileSaya();
+
   return (
     <html lang="id" className={`${nunito.variable} h-full`}>
       <body className="flex min-h-full flex-col">
-        <SesiProvider>{children}</SesiProvider>
+        <SesiProvider profileAwal={profile}>{children}</SesiProvider>
       </body>
     </html>
   );
