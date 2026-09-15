@@ -87,22 +87,15 @@ create index if not exists idx_attendance_profile_tanggal on public.attendance (
 create index if not exists idx_overtime_profile_tanggal on public.overtime_requests (profile_id, tanggal);
 create index if not exists idx_overtime_status on public.overtime_requests (status);
 
--- ---------- VIEWS (data mentah) ----------
-create or replace view public.rekap_keterlambatan_raw as
-select p.id as profile_id, p.nama, p.jabatan, a.tanggal, a.menit_terlambat
-from public.profiles p
-left join public.attendance a on a.profile_id = p.id
-where p.is_active = true;
-
-create or replace view public.rekap_lembur_approved_raw as
-select p.id as profile_id, p.nama, p.jabatan, o.tanggal, o.total_jam, o.nominal
-from public.profiles p
-left join public.overtime_requests o
-  on o.profile_id = p.id and o.status = 'Approved'
-where p.is_active = true;
+-- Catatan: agregasi rekap dilakukan di aplikasi (src/lib/supabase/queries.ts)
+-- memakai Supabase client yang tunduk RLS, jadi tidak perlu VIEW di database.
 
 -- ---------- HELPER anti-recursion ----------
-create or replace function public.is_admin()
+-- Ditaruh di schema `private` (tidak terekspos lewat REST API) agar
+-- linter 0029 tidak menandai dan tidak bisa dipanggil lewat /rest/v1/rpc.
+create schema if not exists private;
+
+create or replace function private.is_admin()
 returns boolean
 language sql
 security definer
@@ -117,8 +110,9 @@ as $$
   );
 $$;
 
-revoke all on function public.is_admin() from public, anon;
-grant execute on function public.is_admin() to authenticated;
+revoke all on function private.is_admin() from public, anon;
+grant usage on schema private to authenticated;
+grant execute on function private.is_admin() to authenticated;
 
 -- ---------- RLS ----------
 alter table public.profiles enable row level security;
@@ -130,52 +124,52 @@ alter table public.activity_logs enable row level security;
 -- profiles
 drop policy if exists "profiles select sendiri atau admin" on public.profiles;
 create policy "profiles select sendiri atau admin"
-on public.profiles for select using (auth.uid() = id or public.is_admin());
+on public.profiles for select using (auth.uid() = id or private.is_admin());
 
 drop policy if exists "profiles insert admin" on public.profiles;
 create policy "profiles insert admin"
-on public.profiles for insert with check (public.is_admin());
+on public.profiles for insert with check (private.is_admin());
 
 drop policy if exists "profiles update admin" on public.profiles;
 create policy "profiles update admin"
-on public.profiles for update using (public.is_admin()) with check (public.is_admin());
+on public.profiles for update using (private.is_admin()) with check (private.is_admin());
 
 drop policy if exists "profiles delete admin" on public.profiles;
 create policy "profiles delete admin"
-on public.profiles for delete using (public.is_admin());
+on public.profiles for delete using (private.is_admin());
 
 -- attendance
 drop policy if exists "attendance select" on public.attendance;
 create policy "attendance select"
-on public.attendance for select using (auth.uid() = profile_id or public.is_admin());
+on public.attendance for select using (auth.uid() = profile_id or private.is_admin());
 
 drop policy if exists "attendance insert sendiri" on public.attendance;
 create policy "attendance insert sendiri"
-on public.attendance for insert with check (auth.uid() = profile_id or public.is_admin());
+on public.attendance for insert with check (auth.uid() = profile_id or private.is_admin());
 
 drop policy if exists "attendance update sendiri" on public.attendance;
 create policy "attendance update sendiri"
-on public.attendance for update using (auth.uid() = profile_id or public.is_admin())
-with check (auth.uid() = profile_id or public.is_admin());
+on public.attendance for update using (auth.uid() = profile_id or private.is_admin())
+with check (auth.uid() = profile_id or private.is_admin());
 
 -- overtime
 drop policy if exists "overtime select" on public.overtime_requests;
 create policy "overtime select"
-on public.overtime_requests for select using (auth.uid() = profile_id or public.is_admin());
+on public.overtime_requests for select using (auth.uid() = profile_id or private.is_admin());
 
 drop policy if exists "overtime insert sendiri" on public.overtime_requests;
 create policy "overtime insert sendiri"
-on public.overtime_requests for insert with check (auth.uid() = profile_id or public.is_admin());
+on public.overtime_requests for insert with check (auth.uid() = profile_id or private.is_admin());
 
 drop policy if exists "overtime update" on public.overtime_requests;
 create policy "overtime update"
-on public.overtime_requests for update using (auth.uid() = profile_id or public.is_admin())
-with check (auth.uid() = profile_id or public.is_admin());
+on public.overtime_requests for update using (auth.uid() = profile_id or private.is_admin())
+with check (auth.uid() = profile_id or private.is_admin());
 
 drop policy if exists "overtime delete pending sendiri" on public.overtime_requests;
 create policy "overtime delete pending sendiri"
 on public.overtime_requests for delete using (
-  (auth.uid() = profile_id and status = 'Pending') or public.is_admin()
+  (auth.uid() = profile_id and status = 'Pending') or private.is_admin()
 );
 
 -- settings
@@ -184,9 +178,9 @@ create policy "settings baca semua" on public.settings for select using (true);
 
 drop policy if exists "settings tulis admin" on public.settings;
 create policy "settings tulis admin"
-on public.settings for all using (public.is_admin()) with check (public.is_admin());
+on public.settings for all using (private.is_admin()) with check (private.is_admin());
 
 -- activity_logs (baca admin; tulis via service_role/server)
 drop policy if exists "activity_logs baca admin" on public.activity_logs;
 create policy "activity_logs baca admin"
-on public.activity_logs for select using (public.is_admin());
+on public.activity_logs for select using (private.is_admin());

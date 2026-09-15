@@ -35,7 +35,11 @@ Buka **Supabase Dashboard → SQL Editor**, tempel seluruh isi
 `supabase/migrations/0001_init.sql`, lalu **Run**.
 
 Skrip ini membuat tabel `profiles`, `settings`, `attendance`, `overtime_requests`,
-`activity_logs`, views rekap, fungsi `is_admin()`, dan semua RLS policy.
+`activity_logs`, helper `private.is_admin()`, dan semua RLS policy.
+
+Lalu jalankan patch perbaikan advisor: buka
+`supabase/migrations/0002_advisor_fixes.sql`, tempel di SQL Editor, **Run**.
+(Menghapus view lama + memindahkan `is_admin()` ke schema `private`.)
 
 ## 4. Seed akun awal (9 akun)
 
@@ -43,8 +47,8 @@ Skrip ini membuat tabel `profiles`, `settings`, `attendance`, `overtime_requests
 node --env-file=.env.local scripts/seed.mjs
 ```
 
-Membuat 1 admin + 8 karyawan. Password default semua akun: `password123`.
-Akun admin: `almannabakery2@gmail.com`.
+Membuat 1 admin + 8 karyawan. Password default karyawan: `password123`.
+Akun admin: `almannabakery2@gmail.com` / `almannabakery2026`.
 
 Aman dijalankan berulang (akun yang sudah ada dilewati).
 

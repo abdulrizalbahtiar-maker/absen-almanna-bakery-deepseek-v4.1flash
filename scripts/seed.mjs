@@ -26,9 +26,10 @@ const admin = createClient(url, serviceKey, {
 });
 
 const PASSWORD_DEFAULT = "password123";
+const PASSWORD_ADMIN = "almannabakery2026";
 
 const AKUN = [
-  { email: "almannabakery2@gmail.com", nama: "Admin Bakery", jabatan: "Owner", role: "admin", masuk: "08:00", pulang: "17:00", lembur: 0, denda: 0 },
+  { email: "almannabakery2@gmail.com", nama: "Admin Bakery", jabatan: "Owner", role: "admin", masuk: "08:00", pulang: "17:00", lembur: 0, denda: 0, password: PASSWORD_ADMIN },
   { email: "kar01@almanna.test", nama: "Karyawan 01", jabatan: "Kasir", role: "karyawan", masuk: "08:00", pulang: "17:00", lembur: 20000, denda: 15000 },
   { email: "kar02@almanna.test", nama: "Karyawan 02", jabatan: "Baker", role: "karyawan", masuk: "07:00", pulang: "16:00", lembur: 25000, denda: 20000 },
   { email: "kar03@almanna.test", nama: "Karyawan 03", jabatan: "Baker", role: "karyawan", masuk: "07:00", pulang: "16:00", lembur: 25000, denda: 20000 },
@@ -55,12 +56,13 @@ async function cariUserByEmail(email) {
 
 async function main() {
   for (const a of AKUN) {
+    const passwordAkun = a.password ?? PASSWORD_DEFAULT;
     let user = await cariUserByEmail(a.email);
 
     if (!user) {
       const { data, error } = await admin.auth.admin.createUser({
         email: a.email,
-        password: PASSWORD_DEFAULT,
+        password: passwordAkun,
         email_confirm: true,
       });
       if (error) {
@@ -70,7 +72,9 @@ async function main() {
       user = data.user;
       console.log(`[create] ${a.email}`);
     } else {
-      console.log(`[skip]   ${a.email} (sudah ada)`);
+      // Pastikan password sesuai (mis. admin).
+      await admin.auth.admin.updateUserById(user.id, { password: passwordAkun });
+      console.log(`[skip]   ${a.email} (sudah ada, password disinkronkan)`);
     }
 
     const { error: upErr } = await admin.from("profiles").upsert(
