@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Toast } from "@/components/ui/Toast";
-import { jarakKeKantor } from "@/lib/geo";
+import { jarakKeKantor, MAKS_AKURASI_METER } from "@/lib/geo";
 import {
   cariAttendance,
   getAttendance,
@@ -15,7 +15,6 @@ import {
   getSettings,
   prosesAbsen,
 } from "@/lib/mockStore";
-import { SIMULASI_GPS } from "@/lib/mockData";
 import { getTanggalWITA } from "@/lib/time";
 import { useMockVersi } from "@/lib/useMockStore";
 import type { GeoPoint } from "@/types";
@@ -72,14 +71,9 @@ export default function AttendancePage() {
         setToast({ pesan: "Izin lokasi ditolak. Aktifkan GPS.", tipe: "error" });
         setLoading(false);
       },
-      { enableHighAccuracy: true, timeout: 15000 },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
     );
   }, []);
-
-  function pakaiSimulasi(titik: GeoPoint) {
-    setGeo({ ...titik });
-    setToast({ pesan: "Lokasi disimulasikan.", tipe: "info" });
-  }
 
   function lakukan(tipe: "check-in" | "check-out") {
     if (!profile || !geo) return;
@@ -89,7 +83,9 @@ export default function AttendancePage() {
 
   if (!profile) return null;
 
-  const jarak = geo ? Math.round(jarakKeKantor(geo.lat, geo.lng)) : null;
+  const jarak = geo
+    ? Math.round(jarakKeKantor(geo.lat, geo.lng, settings.latitude, settings.longitude))
+    : null;
 
   return (
     <div className="space-y-4">
@@ -106,7 +102,6 @@ export default function AttendancePage() {
         radiusMeter={settings.radius_meter}
         userLat={geo?.lat}
         userLng={geo?.lng}
-        akurasi={geo?.akurasi}
         mode="tampil"
       />
 
@@ -115,15 +110,6 @@ export default function AttendancePage() {
         <div className="flex flex-wrap gap-2">
           <Button onClick={ambilLokasi} disabled={loading}>
             {loading ? "Mengambil…" : "Ambil lokasi"}
-          </Button>
-          <Button varian="outline" onClick={() => pakaiSimulasi(SIMULASI_GPS.diKantor)}>
-            Simulasi di kantor
-          </Button>
-          <Button varian="outline" onClick={() => pakaiSimulasi(SIMULASI_GPS.diLuar)}>
-            Simulasi di luar
-          </Button>
-          <Button varian="outline" onClick={() => pakaiSimulasi(SIMULASI_GPS.akurasiBuruk)}>
-            Simulasi akurasi buruk
           </Button>
         </div>
 
@@ -152,6 +138,13 @@ export default function AttendancePage() {
               </dd>
             </div>
           </dl>
+        )}
+
+        {geo && geo.akurasi > MAKS_AKURASI_METER && (
+          <p className="mt-2 text-xs font-semibold text-danger">
+            Akurasi {Math.round(geo.akurasi)} m melebihi batas {MAKS_AKURASI_METER} m. Cari area
+            terbuka lalu ambil lokasi lagi.
+          </p>
         )}
 
         <div className="mt-4 flex flex-wrap gap-2">

@@ -24,16 +24,23 @@ export function haversineMeter(
   return R * c;
 }
 
-export function jarakKeKantor(lat: number, lng: number): number {
-  return haversineMeter(lat, lng, TITIK_KANTOR.lat, TITIK_KANTOR.lng);
+export function jarakKeKantor(
+  lat: number,
+  lng: number,
+  kantorLat: number,
+  kantorLng: number,
+): number {
+  return haversineMeter(lat, lng, kantorLat, kantorLng);
 }
 
 export function diDalamRadius(
   lat: number,
   lng: number,
+  kantorLat: number,
+  kantorLng: number,
   radiusMeter: number,
 ): boolean {
-  return jarakKeKantor(lat, lng) <= radiusMeter;
+  return jarakKeKantor(lat, lng, kantorLat, kantorLng) <= radiusMeter;
 }
 
 export function akurasiValid(akurasi: number): boolean {

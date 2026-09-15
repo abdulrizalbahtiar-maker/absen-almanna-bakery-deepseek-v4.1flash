@@ -42,7 +42,6 @@ export interface OfficeMapProps {
   radiusMeter: number;
   userLat?: number;
   userLng?: number;
-  akurasi?: number;
   mode: "tampil" | "picker";
   onPilih?: (lat: number, lng: number) => void;
 }
@@ -53,7 +52,6 @@ export default function OfficeMap({
   radiusMeter,
   userLat,
   userLng,
-  akurasi,
   mode,
   onPilih,
 }: OfficeMapProps) {
@@ -76,16 +74,7 @@ export default function OfficeMap({
         />
         <Marker position={[kantorLat, kantorLng]} icon={ikonKantor} />
         {mode === "tampil" && userLat != null && userLng != null && (
-          <>
-            <Marker position={[userLat, userLng]} icon={ikonUser} />
-            {akurasi != null && (
-              <Circle
-                center={[userLat, userLng]}
-                radius={akurasi}
-                pathOptions={{ color: "#2563eb", fillColor: "#2563eb", fillOpacity: 0.08 }}
-              />
-            )}
-          </>
+          <Marker position={[userLat, userLng]} icon={ikonUser} />
         )}
         {mode === "picker" && onPilih && <PenangkapKlik onKlik={onPilih} />}
         {mode === "picker" && <IkutiPusat lat={kantorLat} lng={kantorLng} />}

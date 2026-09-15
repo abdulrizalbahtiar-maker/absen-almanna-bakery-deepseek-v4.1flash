@@ -45,7 +45,7 @@
 | Nominal_Lembur | `Total_Jam_Lembur * profiles.tarif_lembur_per_jam` milik karyawan yang lembur. Disimpan saat approve, tidak dihitung ulang. |
 | Radius Valid | Jarak Haversine(user, kantor) <= `settings.radius_meter`. Kantor default `-4.030128, 122.473738`. |
 | `tolak_diluar_radius` | Flag di `settings` (default `true`). `true` = absen di luar radius ditolak total (tidak ada baris tersimpan). `false` = baris tersimpan dengan `status_radius_masuk/pulang = DiLuarRadius` untuk review admin. |
-| Akurasi_Meter | Nilai `coords.accuracy` dari browser (meter). Server tolak jika `> 100` (bab 7.1 langkah 6). |
+| Akurasi_Meter | Nilai `coords.accuracy` dari browser (meter). Server tolak jika `> 100` (bab 7.1 langkah 6). Nilai validasi dihitung terhadap `settings.latitude/longitude`, bukan konstanta. |
 | Leaflet_Map | Peta OSM di halaman Attendance (read-only) dan Settings (picker). Hanya visual. Validasi tetap Haversine server. |
 | Excel_Export | Library `exceljs`. Fase frontend: generate client-side dari mock. Fase backend: generate server-side stream. Format `.xlsx` 2 sheet. |
 | Dummy_Karyawan | 9 user dummy: `Karyawan 01` s/d `Karyawan 08` + 1 `Admin` (lihat bab 9.3). Dipakai untuk test frontend sebelum backend. |
@@ -180,8 +180,8 @@ Langkah implementasi:
 2. Client ambil `navigator.geolocation.getCurrentPosition` dengan `enableHighAccuracy: true`.
 3. Client tampilkan `Marker` user + lingkaran akurasi di peta Leaflet. Leaflet hanya visual, bukan penentu valid.
 4. Client kirim `lat`, `lng`, `akurasi_meter` ke API.
-5. Server hitung Haversine, bandingkan dengan `settings.radius_meter`.
-6. Server tolak jika `akurasi_meter > 100` (GPS tidak akurat).
+5. Server hitung Haversine terhadap titik kantor dari `settings.latitude/longitude`, bandingkan dengan `settings.radius_meter`.
+6. Server tolak jika `akurasi_meter > 100` (GPS tidak akurat). Pesan tampilkan akurasi aktual vs batas.
 7. Server tentukan `tanggal` di timezone `Asia/Makassar`, lalu cek duplikat `profile_id + tanggal`.
 8. Server hitung `menit_terlambat` dan simpan (check-in) atau isi `jam_pulang` (check-out).
 
@@ -198,7 +198,7 @@ Aturan Leaflet (wajib):
 - Pakai `leaflet` + `react-leaflet`. Import peta via `next/dynamic` dengan `ssr: false`.
 - Tile: `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`. Tanpa API key. Cantumkan atribusi OSM.
 - File: `src/components/map/OfficeMap.tsx`. Props: `kantorLat`, `kantorLng`, `radiusMeter`, `userLat?`, `userLng?`, `akurasi?`, `mode: tampil | picker`.
-- Mode `tampil` (halaman Attendance): read-only. Tampilkan kantor + circle + user.
+- Mode `tampil` (halaman Attendance): read-only. Tampilkan kantor + circle radius + marker user. Tanpa circle akurasi di titik user.
 - Mode `picker` (halaman Settings, admin): klik peta untuk ubah `latitude` dan `longitude`. Slider ubah `radius_meter` live.
 - Fix icon marker Next.js: set `L.Icon.Default` manual atau pakai `divIcon` custom agar tidak 404.
 - Import CSS `leaflet/dist/leaflet.css` sekali di komponen peta (client component).
@@ -573,7 +573,7 @@ File `src/lib/mockData.ts` harus berisi persis 9 akun ini. Jangan pakai nama asl
 Aturan mock:
 
 - Settings mock: `latitude -4.030128`, `longitude 122.473738`, `radius_meter 100`, `tarif_default 20000`, `tolak_diluar_radius true`.
-- Mock GPS: tombol `Simulasi Di Kantor` kirim `-4.030128, 122.473738` akurasi `15` (Valid). Tombol `Simulasi Di Luar` kirim `-4.035, 122.480` akurasi `15` (jarak terukur ~881 m, tetap di luar radius 100 m, DiLuarRadius). Tombol `Simulasi Akurasi Buruk` kirim koordinat kantor akurasi `150` (ditolak karena akurasi).
+- Mock GPS: konstanta `SIMULASI_GPS` di `mockData.ts` dipakai HANYA untuk unit test otomatis (bukan tombol di UI). Titik: `diKantor` `-4.030128, 122.473738` akurasi `15` (Valid). `diLuar` `-4.035, 122.480` akurasi `15` (jarak terukur ~881 m, tetap di luar radius 100 m, DiLuarRadius). `akurasiBuruk` koordinat kantor akurasi `150` (ditolak karena akurasi). Halaman Attendance tidak punya tombol simulasi; hanya tombol `Ambil lokasi` memakai GPS asli.
 - Semua password mock: `password123`. Login hanya pilih user dari dropdown, tanpa Supabase.
 
 ### 9.4 RLS Policies (Wajib, Bebas Recursion)

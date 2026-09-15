@@ -13,7 +13,7 @@ import {
   buatSeedTransaksi,
   daftarKaryawanAktif,
 } from "./mockData";
-import { akurasiValid, jarakKeKantor } from "./geo";
+import { akurasiValid, jarakKeKantor, MAKS_AKURASI_METER } from "./geo";
 import { hitungMenitTerlambat, hitungJamTerlambat } from "./late";
 import { hitungNominal, hitungTotalJam, validasiPengajuanLembur } from "./overtime";
 import { getJamLengkapWITA, getTanggalWITA } from "./time";
@@ -186,12 +186,14 @@ export function prosesAbsen(
 ): HasilAbsen {
   const s = baca();
   const tanggal = getTanggalWITA();
-  const jarak = Math.round(jarakKeKantor(geo.lat, geo.lng));
+  const jarak = Math.round(
+    jarakKeKantor(geo.lat, geo.lng, s.settings.latitude, s.settings.longitude),
+  );
 
   if (!akurasiValid(geo.akurasi)) {
     return {
       sukses: false,
-      pesan: `Akurasi GPS ${Math.round(geo.akurasi)}m terlalu rendah. Cari area terbuka.`,
+      pesan: `Akurasi GPS ${Math.round(geo.akurasi)} m melebihi batas ${MAKS_AKURASI_METER} m. Cari area terbuka lalu ambil lokasi lagi.`,
       jarak,
     };
   }
@@ -200,7 +202,7 @@ export function prosesAbsen(
   if (!didalam && s.settings.tolak_diluar_radius) {
     return {
       sukses: false,
-      pesan: `Di luar radius kantor (${jarak} m, maks ${s.settings.radius_meter} m).`,
+      pesan: `Di luar radius kantor. Jarak ${jarak} m, batas ${s.settings.radius_meter} m (akurasi ${Math.round(geo.akurasi)} m).`,
       jarak,
       statusRadius: "DiLuarRadius",
     };
