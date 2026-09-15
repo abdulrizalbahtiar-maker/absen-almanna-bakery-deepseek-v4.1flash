@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Toast } from "@/components/ui/Toast";
-import { jarakKeKantor, MAKS_AKURASI_METER } from "@/lib/geo";
+import { jarakKeKantor } from "@/lib/geo";
 import {
   cariAttendance,
   getAttendance,
@@ -138,13 +138,6 @@ export default function AttendancePage() {
               </dd>
             </div>
           </dl>
-        )}
-
-        {geo && geo.akurasi > MAKS_AKURASI_METER && (
-          <p className="mt-2 text-xs font-semibold text-danger">
-            Akurasi {Math.round(geo.akurasi)} m melebihi batas {MAKS_AKURASI_METER} m. Cari area
-            terbuka lalu ambil lokasi lagi.
-          </p>
         )}
 
         <div className="mt-4 flex flex-wrap gap-2">

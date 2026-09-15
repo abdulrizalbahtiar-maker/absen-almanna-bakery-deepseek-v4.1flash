@@ -3,8 +3,6 @@ export const TITIK_KANTOR = {
   lng: 122.473738,
 } as const;
 
-export const MAKS_AKURASI_METER = 100;
-
 /** Jarak Haversine antara dua koordinat dalam meter. */
 export function haversineMeter(
   lat1: number,
@@ -41,8 +39,4 @@ export function diDalamRadius(
   radiusMeter: number,
 ): boolean {
   return jarakKeKantor(lat, lng, kantorLat, kantorLng) <= radiusMeter;
-}
-
-export function akurasiValid(akurasi: number): boolean {
-  return akurasi <= MAKS_AKURASI_METER;
 }

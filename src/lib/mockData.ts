@@ -125,6 +125,7 @@ export const MOCK_SETTINGS: Settings = {
 export const SIMULASI_GPS = {
   diKantor: { lat: -4.030128, lng: 122.473738, akurasi: 15 },
   diLuar: { lat: -4.035, lng: 122.48, akurasi: 15 },
+  // akurasi besar tidak memblokir absen; hanya dicatat sebagai log.
   akurasiBuruk: { lat: -4.030128, lng: 122.473738, akurasi: 150 },
 } as const;
 

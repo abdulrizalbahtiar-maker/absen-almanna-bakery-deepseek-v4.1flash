@@ -35,10 +35,10 @@ describe("mesin aksi absen (bab 7.1)", () => {
     expect(r.jarak).toBeGreaterThan(100);
   });
 
-  it("akurasi buruk ditolak", () => {
+  it("akurasi buruk TIDAK memblokir selama di dalam radius", () => {
     const r = prosesAbsen(kar01(), "check-in", SIMULASI_GPS.akurasiBuruk);
-    expect(r.sukses).toBe(false);
-    expect(r.pesan).toContain("Akurasi");
+    expect(r.sukses).toBe(true);
+    expect(r.statusRadius).toBe("Valid");
   });
 
   it("duplikat check-in ditolak", () => {

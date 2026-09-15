@@ -3,7 +3,6 @@ import {
   haversineMeter,
   jarakKeKantor,
   diDalamRadius,
-  akurasiValid,
   TITIK_KANTOR,
 } from "@/lib/geo";
 
@@ -35,11 +34,5 @@ describe("geo (bab 7.1)", () => {
     const kantorLat = K.lat - 0.01;
     const jarak = jarakKeKantor(K.lat, K.lng, kantorLat, K.lng);
     expect(jarak).toBeGreaterThan(1000);
-  });
-
-  it("akurasi > 100 ditolak", () => {
-    expect(akurasiValid(150)).toBe(false);
-    expect(akurasiValid(100)).toBe(true);
-    expect(akurasiValid(15)).toBe(true);
   });
 });

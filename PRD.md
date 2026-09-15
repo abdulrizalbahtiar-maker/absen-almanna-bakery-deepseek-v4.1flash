@@ -25,7 +25,7 @@
 - Masalah: rekap keterlambatan dan lembur masih manual. Sulit menentukan gaji yang adil berbasis jam kerja aktual.
 - Solusi: aplikasi web absensi berbasis lokasi GPS + pengajuan lembur + rekap otomatis.
 - Output utama: rekap total keterlambatan per karyawan (menit/jam) dan rekap total durasi lembur + nominal (Rp) per periode. Output dipakai admin untuk menentukan gaji.
-- Tanpa foto/selfie. Validasi hanya radius GPS + akurasi GPS + tanda mock-location jika tersedia.
+- Tanpa foto/selfie. Validasi hanya radius GPS (Haversine). Akurasi GPS dicatat sebagai log saja, tidak memblokir absen.
 
 ## 2. Glosarium (Definisi Untuk AI)
 
@@ -45,7 +45,7 @@
 | Nominal_Lembur | `Total_Jam_Lembur * profiles.tarif_lembur_per_jam` milik karyawan yang lembur. Disimpan saat approve, tidak dihitung ulang. |
 | Radius Valid | Jarak Haversine(user, kantor) <= `settings.radius_meter`. Kantor default `-4.030128, 122.473738`. |
 | `tolak_diluar_radius` | Flag di `settings` (default `true`). `true` = absen di luar radius ditolak total (tidak ada baris tersimpan). `false` = baris tersimpan dengan `status_radius_masuk/pulang = DiLuarRadius` untuk review admin. |
-| Akurasi_Meter | Nilai `coords.accuracy` dari browser (meter). Server tolak jika `> 100` (bab 7.1 langkah 6). Nilai validasi dihitung terhadap `settings.latitude/longitude`, bukan konstanta. |
+| Akurasi_Meter | Nilai `coords.accuracy` dari browser (meter). Disimpan sebagai log (`akurasi_masuk_meter`, `akurasi_pulang_meter`) dan ditampilkan sebagai info, TIDAK dipakai untuk memblokir absen. Validasi murni radius (Haversine) terhadap `settings.latitude/longitude`. |
 | Leaflet_Map | Peta OSM di halaman Attendance (read-only) dan Settings (picker). Hanya visual. Validasi tetap Haversine server. |
 | Excel_Export | Library `exceljs`. Fase frontend: generate client-side dari mock. Fase backend: generate server-side stream. Format `.xlsx` 2 sheet. |
 | Dummy_Karyawan | 9 user dummy: `Karyawan 01` s/d `Karyawan 08` + 1 `Admin` (lihat bab 9.3). Dipakai untuk test frontend sebelum backend. |
@@ -101,8 +101,8 @@ Aturan auth:
 - [ ] S1: Auth login/logout + proteksi role.
 - [ ] S2: CRUD karyawan oleh admin termasuk `jam_masuk_standar`, `jam_pulang_standar`, dan `tarif_lembur_per_jam` per karyawan.
 - [ ] S3: Settings global: `latitude`, `longitude`, `radius_meter`, `jam_masuk_default`, `jam_pulang_default`, `tarif_default` (dipakai saat create karyawan baru saja), `tolak_diluar_radius`.
-- [ ] S4: Check-in GPS dengan validasi Haversine radius + akurasi.
-- [ ] S5: Check-out GPS dengan validasi Haversine radius + akurasi.
+- [ ] S4: Check-in GPS dengan validasi Haversine radius (akurasi dicatat, tidak memblokir).
+- [ ] S5: Check-out GPS dengan validasi Haversine radius (akurasi dicatat, tidak memblokir).
 - [ ] S6: Hitung `menit_terlambat` otomatis saat check-in.
 - [ ] S7: Pengajuan lembur: tanggal, jam_mulai, jam_selesai, alasan. Hitung `total_jam` otomatis.
 - [ ] S8: Edit dan hapus lembur hanya jika `status=Pending` dan milik sendiri (atau admin).
@@ -130,8 +130,8 @@ Format untuk AI: setiap story punya ID, aksi, AC checklist, dan dampak DB.
 
 | ID | Sebagai | Saya Ingin | Acceptance Criteria | DB Impact |
 |----|---------|------------|---------------------|-----------|
-| US-01 | karyawan | check-in dengan GPS | 1. Tombol aktif setelah lokasi didapat. 2. Tolak jika `akurasi_meter > 100` (pesan: cari area terbuka). 3. Jika jarak <= radius maka `status_radius_masuk=Valid` dan tersimpan. 4. Jika jarak > radius: bila `tolak_diluar_radius=true` → tolak total (tidak ada baris tersimpan, tampilkan jarak meter); bila `false` → simpan dengan `status_radius_masuk=DiLuarRadius` untuk review admin. 5. Duplikat check-in hari sama (baris `profile_id + tanggal` sudah ada) ditolak. 6. `menit_terlambat` terhitung otomatis. 7. `tanggal` dihitung di timezone `Asia/Makassar`. | INSERT `attendance` 1 baris per user per tanggal |
-| US-02 | karyawan | check-out dengan GPS | 1. Tolak jika belum ada baris absen hari itu. 2. Tolak jika `jam_pulang` sudah terisi (duplikat). 3. Validasi radius + akurasi sama seperti US-01. 4. Isi `jam_pulang`, `lat_pulang`, `lng_pulang`, `status_radius_pulang`. | UPDATE `attendance.jam_pulang` |
+| US-01 | karyawan | check-in dengan GPS | 1. Tombol aktif setelah lokasi didapat. 2. Akurasi GPS dicatat sebagai log, tidak memblokir absen. 3. Jika jarak <= radius maka `status_radius_masuk=Valid` dan tersimpan. 4. Jika jarak > radius: bila `tolak_diluar_radius=true` → tolak total (tidak ada baris tersimpan, tampilkan jarak meter); bila `false` → simpan dengan `status_radius_masuk=DiLuarRadius` untuk review admin. 5. Duplikat check-in hari sama (baris `profile_id + tanggal` sudah ada) ditolak. 6. `menit_terlambat` terhitung otomatis. 7. `tanggal` dihitung di timezone `Asia/Makassar`. | INSERT `attendance` 1 baris per user per tanggal |
+| US-02 | karyawan | check-out dengan GPS | 1. Tolak jika belum ada baris absen hari itu. 2. Tolak jika `jam_pulang` sudah terisi (duplikat). 3. Validasi radius sama seperti US-01; akurasi dicatat saja. 4. Isi `jam_pulang`, `lat_pulang`, `lng_pulang`, `status_radius_pulang`. | UPDATE `attendance.jam_pulang` |
 | US-03 | sistem | hitung keterlambatan | 1. `menit_terlambat = MAX(0, jam_masuk_aktual - profiles.jam_masuk_standar)`. 2. Tepat waktu = 0. 3. Contoh: standar 08:00, aktual 08:25 => 25. 4. Diisi hanya saat insert check-in, tidak berubah saat check-out. | kolom `attendance.menit_terlambat` |
 | US-04 | karyawan | ajukan lembur | 1. Input tanggal, jam_mulai, jam_selesai, alasan wajib. 2. `jam_selesai > jam_mulai` (sama hari). 3. `total_jam = selisih desimal 2 digit`. Contoh 18:00-20:30 => 2.5. 4. Tanggal tidak boleh lebih dari 7 hari di masa depan (timezone aplikasi) atau di masa lalu (kecuali diizinkan admin; v1 tolak masa lalu). 5. `alasan` minimal 10 karakter. 6. Status awal `Pending`. | INSERT `overtime_requests` |
 | US-05 | karyawan | edit/hapus lembur Pending | 1. Hanya milik sendiri. 2. Hanya jika `status=Pending`. 3. Setelah edit hitung ulang `total_jam` dan validasi ulang. | UPDATE/DELETE `overtime_requests` |
@@ -158,9 +158,7 @@ flowchart TD
     C1 --> D{Browser beri izin GPS?}
     D -->|Tidak| E[Tampilkan error: aktifkan GPS dan HTTPS]
     D -->|Ya| F[Tampilkan marker user + hitung jarak Haversine user ke kantor]
-    F --> F1{Akurasi <= 100m?}
-    F1 -->|Tidak| F2[Tolak: sinyal GPS lemah, minta pindah area terbuka]
-    F1 -->|Ya| G{Jarak <= radius_meter?}
+    F --> G{Jarak <= radius_meter?}
     G -->|Ya| H[Status = Valid]
     G -->|Tidak| I{Setting tolak_diluar_radius?}
     I -->|true| J[Tolak simpan dan tampilkan jarak meter]
@@ -178,10 +176,10 @@ Langkah implementasi:
 
 1. Client tampilkan peta Leaflet. Center = `settings.latitude`, `settings.longitude` (`-4.030128, 122.473738`). Tampilkan `Circle` radius + `Marker` kantor.
 2. Client ambil `navigator.geolocation.getCurrentPosition` dengan `enableHighAccuracy: true`.
-3. Client tampilkan `Marker` user + lingkaran akurasi di peta Leaflet. Leaflet hanya visual, bukan penentu valid.
-4. Client kirim `lat`, `lng`, `akurasi_meter` ke API.
+3. Client tampilkan `Marker` user di peta Leaflet (tanpa circle). Leaflet hanya visual, bukan penentu valid.
+4. Client kirim `lat`, `lng`, `akurasi_meter` ke API. Akurasi hanya untuk log, bukan penentu.
 5. Server hitung Haversine terhadap titik kantor dari `settings.latitude/longitude`, bandingkan dengan `settings.radius_meter`.
-6. Server tolak jika `akurasi_meter > 100` (GPS tidak akurat). Pesan tampilkan akurasi aktual vs batas.
+6. Akurasi GPS TIDAK memblokir absen. Selama jarak <= radius, absen diterima.
 7. Server tentukan `tanggal` di timezone `Asia/Makassar`, lalu cek duplikat `profile_id + tanggal`.
 8. Server hitung `menit_terlambat` dan simpan (check-in) atau isi `jam_pulang` (check-out).
 
@@ -197,7 +195,7 @@ Aturan Leaflet (wajib):
 
 - Pakai `leaflet` + `react-leaflet`. Import peta via `next/dynamic` dengan `ssr: false`.
 - Tile: `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`. Tanpa API key. Cantumkan atribusi OSM.
-- File: `src/components/map/OfficeMap.tsx`. Props: `kantorLat`, `kantorLng`, `radiusMeter`, `userLat?`, `userLng?`, `akurasi?`, `mode: tampil | picker`.
+- File: `src/components/map/OfficeMap.tsx`. Props: `kantorLat`, `kantorLng`, `radiusMeter`, `userLat?`, `userLng?`, `mode: tampil | picker`.
 - Mode `tampil` (halaman Attendance): read-only. Tampilkan kantor + circle radius + marker user. Tanpa circle akurasi di titik user.
 - Mode `picker` (halaman Settings, admin): klik peta untuk ubah `latitude` dan `longitude`. Slider ubah `radius_meter` live.
 - Fix icon marker Next.js: set `L.Icon.Default` manual atau pakai `divIcon` custom agar tidak 404.
@@ -423,10 +421,10 @@ total_nominal = COALESCE(SUM(nominal_tersimpan), 0)
 
 ### 8.5 Anti-Spoof Ringan (v1)
 
-Validasi minimal (sesuai sumber industri: cocokkan radius dengan akurasi GPS, jangan percaya hitungan client):
+Validasi minimal:
 
-1. Validasi radius wajib di server (Haversine), bukan di client.
-2. Tolak `akurasi_meter > 100`.
+1. Validasi radius wajib di server (Haversine), bukan di client. Radius adalah SATU-SATUNYA penentu valid/tidak valid.
+2. Akurasi GPS dicatat sebagai log (`akurasi_masuk_meter`, `akurasi_pulang_meter`) dan ditampilkan sebagai info, TIDAK memblokir absen.
 3. Jika browser mendukung dan menyediakan `coords` tambahan, simpan `sumber_lokasi` (`gps`/`network`/`unknown`) bila ada. Opsional, tidak blocking.
 4. Flag anomali (tidak blocking v1, tampilkan badge di halaman admin): dua check-in berturut-turut dengan kecepatan tak wajar (> 200 km/jam). Boleh ditunda ke v2, catat sebagai TODO eksplisit.
 
@@ -573,7 +571,7 @@ File `src/lib/mockData.ts` harus berisi persis 9 akun ini. Jangan pakai nama asl
 Aturan mock:
 
 - Settings mock: `latitude -4.030128`, `longitude 122.473738`, `radius_meter 100`, `tarif_default 20000`, `tolak_diluar_radius true`.
-- Mock GPS: konstanta `SIMULASI_GPS` di `mockData.ts` dipakai HANYA untuk unit test otomatis (bukan tombol di UI). Titik: `diKantor` `-4.030128, 122.473738` akurasi `15` (Valid). `diLuar` `-4.035, 122.480` akurasi `15` (jarak terukur ~881 m, tetap di luar radius 100 m, DiLuarRadius). `akurasiBuruk` koordinat kantor akurasi `150` (ditolak karena akurasi). Halaman Attendance tidak punya tombol simulasi; hanya tombol `Ambil lokasi` memakai GPS asli.
+- Mock GPS: konstanta `SIMULASI_GPS` di `mockData.ts` dipakai HANYA untuk unit test otomatis (bukan tombol di UI). Titik: `diKantor` `-4.030128, 122.473738` akurasi `15` (Valid). `diLuar` `-4.035, 122.480` akurasi `15` (jarak terukur ~881 m, tetap di luar radius 100 m, DiLuarRadius). `akurasiBuruk` koordinat kantor akurasi `150` (tetap DITERIMA karena akurasi tidak memblokir; hanya dicatat). Halaman Attendance tidak punya tombol simulasi; hanya tombol `Ambil lokasi` memakai GPS asli.
 - Semua password mock: `password123`. Login hanya pilih user dari dropdown, tanpa Supabase.
 
 ### 9.4 RLS Policies (Wajib, Bebas Recursion)
@@ -703,8 +701,8 @@ Karena middleware (bab 4, 7.4) mengecek session Supabase, fase frontend dummy bu
 
 | Method + Path | Role | Validasi |
 |---------------|------|----------|
-| `POST /api/attendance/check-in` | karyawan | lat, lng, akurasi wajib. Tolak jika `akurasi > 100`. Tolak duplikat (baris sudah ada). Tolak jika di luar radius dan `tolak_diluar_radius=true`; jika `false` simpan dengan flag. Hitung menit_telat. Tanggal timezone `Asia/Makassar`. |
-| `POST /api/attendance/check-out` | karyawan | Harus ada baris hari itu. Tolak jika `jam_pulang` sudah terisi. Validasi radius + akurasi. |
+| `POST /api/attendance/check-in` | karyawan | lat, lng, akurasi wajib. Akurasi dicatat saja (tidak memblokir). Tolak duplikat (baris sudah ada). Tolak jika di luar radius dan `tolak_diluar_radius=true`; jika `false` simpan dengan flag. Hitung menit_telat. Tanggal timezone `Asia/Makassar`. |
+| `POST /api/attendance/check-out` | karyawan | Harus ada baris hari itu. Tolak jika `jam_pulang` sudah terisi. Validasi radius; akurasi dicatat saja. |
 | `GET /api/attendance/history?from&to` | semua | RLS enforce. Paginasi 20 per halaman. |
 | `POST /api/overtime` | karyawan | Validasi jam + alasan >= 10 char + tanggal (bab 8.2). Status Pending. |
 | `PUT /api/overtime/[id]` | pemilik Pending | Tolak jika bukan Pending. Recalc total_jam + validasi ulang. |
@@ -822,7 +820,7 @@ Urutan implementasi wajib: F1 -> F2 -> F3 -> F4. Jangan lompat ke Excel sebelum 
 |--------|--------|----------|
 | Supabase Free pause 7 hari idle | Cold start 10-30s | Cron keep-alive harian + pesan loading ramah |
 | RLS recursive policy | Query error seluruh app | Fungsi `is_admin()` SECURITY DEFINER + larangan self-query (bab 9.4) |
-| GPS HP tidak akurat (dalam gedung) | Absen valid ditolak | Tolak jika akurasi > 100m dengan pesan jelas + `tolak_diluar_radius=false` memungkinkan simpan berflag + admin review manual |
+| GPS HP tidak akurat (dalam gedung) | Absen valid ditolak | Akurasi TIDAK memblokir (hanya log/info). Validasi murni radius + `tolak_diluar_radius=false` memungkinkan simpan berflag + admin review manual |
 | Karyawan titip absen (share akun) | Data palsu | RLS + 1 akun 1 device disarankan, radius kecil 50-100m, sinyal anti-spoof ringan (bab 8.5) |
 | Tarif berubah mid-periode | Rekap histori berubah jika hitung ulang | Simpan `nominal` saat approve + tarif di `profiles` per karyawan, jangan hitung ulang |
 | Timezone server UTC salah hari | Absen malam masuk tanggal salah | Konversi `Asia/Makassar` server-side (bab 8.1, 10.3) |
