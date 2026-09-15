@@ -19,6 +19,7 @@ export const MOCK_PROFILES: Profile[] = [
     jam_pulang_standar: "17:00",
     tarif_lembur_per_jam: 0,
     tarif_denda_per_jam: 0,
+    password: MOCK_PASSWORD,
     is_active: true,
   },
   {
@@ -31,6 +32,7 @@ export const MOCK_PROFILES: Profile[] = [
     jam_pulang_standar: "17:00",
     tarif_lembur_per_jam: 20000,
     tarif_denda_per_jam: 15000,
+    password: MOCK_PASSWORD,
     is_active: true,
   },
   {
@@ -43,6 +45,7 @@ export const MOCK_PROFILES: Profile[] = [
     jam_pulang_standar: "16:00",
     tarif_lembur_per_jam: 25000,
     tarif_denda_per_jam: 20000,
+    password: MOCK_PASSWORD,
     is_active: true,
   },
   {
@@ -55,6 +58,7 @@ export const MOCK_PROFILES: Profile[] = [
     jam_pulang_standar: "16:00",
     tarif_lembur_per_jam: 25000,
     tarif_denda_per_jam: 20000,
+    password: MOCK_PASSWORD,
     is_active: true,
   },
   {
@@ -67,6 +71,7 @@ export const MOCK_PROFILES: Profile[] = [
     jam_pulang_standar: "17:00",
     tarif_lembur_per_jam: 15000,
     tarif_denda_per_jam: 10000,
+    password: MOCK_PASSWORD,
     is_active: true,
   },
   {
@@ -79,6 +84,7 @@ export const MOCK_PROFILES: Profile[] = [
     jam_pulang_standar: "17:00",
     tarif_lembur_per_jam: 15000,
     tarif_denda_per_jam: 10000,
+    password: MOCK_PASSWORD,
     is_active: true,
   },
   {
@@ -91,6 +97,7 @@ export const MOCK_PROFILES: Profile[] = [
     jam_pulang_standar: "18:00",
     tarif_lembur_per_jam: 18000,
     tarif_denda_per_jam: 12000,
+    password: MOCK_PASSWORD,
     is_active: true,
   },
   {
@@ -103,6 +110,7 @@ export const MOCK_PROFILES: Profile[] = [
     jam_pulang_standar: "17:00",
     tarif_lembur_per_jam: 15000,
     tarif_denda_per_jam: 10000,
+    password: MOCK_PASSWORD,
     is_active: true,
   },
   {
@@ -115,6 +123,7 @@ export const MOCK_PROFILES: Profile[] = [
     jam_pulang_standar: "17:30",
     tarif_lembur_per_jam: 20000,
     tarif_denda_per_jam: 15000,
+    password: MOCK_PASSWORD,
     is_active: true,
   },
 ];

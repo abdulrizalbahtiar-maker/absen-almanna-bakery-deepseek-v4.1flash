@@ -132,13 +132,23 @@ export function tambahKaryawan(input: {
   nama: string;
   email: string;
   jabatan: string;
-}): Profile {
+  password: string;
+}): { sukses: boolean; pesan: string; profile?: Profile } {
   const s = baca();
+  const emailBersih = input.email.trim().toLowerCase();
+
+  if (s.profiles.some((p) => p.email.toLowerCase() === emailBersih)) {
+    return { sukses: false, pesan: "Email sudah terdaftar." };
+  }
+  if (input.password.length < 6) {
+    return { sukses: false, pesan: "Password minimal 6 karakter." };
+  }
+
   s.seq += 1;
   const baru: Profile = {
     id: `mock-kar-baru-${s.seq}`,
-    email: input.email,
-    nama: input.nama,
+    email: emailBersih,
+    nama: input.nama.trim(),
     jabatan: input.jabatan || "Staff",
     role: "karyawan",
     jam_masuk_standar: s.settings.jam_masuk_default,
@@ -146,10 +156,11 @@ export function tambahKaryawan(input: {
     tarif_lembur_per_jam: s.settings.tarif_default,
     tarif_denda_per_jam: 0,
     is_active: true,
+    password: input.password,
   };
   s.profiles = [...s.profiles, baru];
   simpan(s);
-  return baru;
+  return { sukses: true, pesan: "Karyawan ditambahkan.", profile: baru };
 }
 
 /** Hapus karyawan permanen beserta transaksinya (absensi + lembur). */

@@ -10,6 +10,7 @@ import {
   resetTransaksi,
   getOvertime,
   getProfiles,
+  tambahKaryawan,
   hapusKaryawan,
   resetStateMock,
 } from "@/lib/mockStore";
@@ -181,5 +182,41 @@ describe("hapus karyawan", () => {
     const hasil = hapusKaryawan("mock-admin-1");
     expect(hasil.sukses).toBe(false);
     expect(getProfiles().find((p) => p.id === "mock-admin-1")).toBeTruthy();
+  });
+});
+
+describe("tambah karyawan + password", () => {
+  it("menyimpan password & bisa login", () => {
+    const hasil = tambahKaryawan({
+      nama: "Karyawan Baru",
+      email: "baru@almanna.test",
+      jabatan: "Kasir",
+      password: "rahasia123",
+    });
+    expect(hasil.sukses).toBe(true);
+    const dibuat = getProfiles().find((p) => p.email === "baru@almanna.test")!;
+    expect(dibuat.password).toBe("rahasia123");
+  });
+
+  it("tolak email duplikat", () => {
+    const hasil = tambahKaryawan({
+      nama: "Duplikat",
+      email: "kar01@almanna.test",
+      jabatan: "Staff",
+      password: "rahasia123",
+    });
+    expect(hasil.sukses).toBe(false);
+    expect(hasil.pesan).toContain("sudah terdaftar");
+  });
+
+  it("tolak password < 6 karakter", () => {
+    const hasil = tambahKaryawan({
+      nama: "Pendek",
+      email: "pendek@almanna.test",
+      jabatan: "Staff",
+      password: "123",
+    });
+    expect(hasil.sukses).toBe(false);
+    expect(hasil.pesan).toContain("6 karakter");
   });
 });

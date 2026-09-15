@@ -24,6 +24,8 @@ type TipeToast = "sukses" | "error" | "info";
 
 const KOLOM = [
   "Nama",
+  "Email",
+  "Password",
   "Jam masuk",
   "Jam pulang",
   "Jam kerja",
@@ -32,12 +34,19 @@ const KOLOM = [
   "Aksi",
 ];
 
+const PASSWORD_DEFAULT = "password123";
+
 export default function SettingsPage() {
   const { profile } = useSesi();
   const [state, setState] = useState<Settings>(() => ({ ...getSettings() }));
   const versi = useMockVersi();
   const [toast, setToast] = useState<{ pesan: string; tipe: TipeToast } | null>(null);
-  const [formBaru, setFormBaru] = useState({ nama: "", email: "", jabatan: "Staff" });
+  const [formBaru, setFormBaru] = useState({
+    nama: "",
+    email: "",
+    jabatan: "Staff",
+    password: PASSWORD_DEFAULT,
+  });
 
   const daftar = useMemo(
     () => getProfiles().filter((p) => p.role === "karyawan"),
@@ -59,9 +68,13 @@ export default function SettingsPage() {
       setToast({ pesan: "Nama dan email wajib.", tipe: "error" });
       return;
     }
-    tambahKaryawan(formBaru);
-    setFormBaru({ nama: "", email: "", jabatan: "Staff" });
-    setToast({ pesan: "Karyawan ditambahkan.", tipe: "sukses" });
+    const hasil = tambahKaryawan(formBaru);
+    if (!hasil.sukses) {
+      setToast({ pesan: hasil.pesan, tipe: "error" });
+      return;
+    }
+    setFormBaru({ nama: "", email: "", jabatan: "Staff", password: PASSWORD_DEFAULT });
+    setToast({ pesan: hasil.pesan, tipe: "sukses" });
   }
 
   function ubahKaryawan(id: string, patch: Partial<Profile>) {
@@ -183,7 +196,7 @@ export default function SettingsPage() {
 
       <Card>
         <CardTitle>Karyawan</CardTitle>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Nama">
             <Input
               value={formBaru.nama}
@@ -202,13 +215,19 @@ export default function SettingsPage() {
               onChange={(e) => setFormBaru({ ...formBaru, jabatan: e.target.value })}
             />
           </Field>
+          <Field label="Password">
+            <Input
+              value={formBaru.password}
+              onChange={(e) => setFormBaru({ ...formBaru, password: e.target.value })}
+            />
+          </Field>
         </div>
         <Button className="mt-3" onClick={tambah}>
           Tambah karyawan
         </Button>
 
         <div className="mt-4 -mx-4 overflow-x-auto px-4">
-          <table className="w-full min-w-[720px] text-sm">
+          <table className="w-full min-w-[960px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-ink-soft">
                 {KOLOM.map((h) => (
@@ -224,6 +243,19 @@ export default function SettingsPage() {
                   <td className="py-2 pr-3">
                     <p className="font-semibold text-ink">{k.nama}</p>
                     <p className="text-xs text-ink-soft">{k.jabatan}</p>
+                  </td>
+                  <td className="py-2 pr-3">
+                    <Input
+                      type="email"
+                      value={k.email}
+                      onChange={(e) => ubahKaryawan(k.id, { email: e.target.value })}
+                    />
+                  </td>
+                  <td className="py-2 pr-3">
+                    <Input
+                      value={k.password}
+                      onChange={(e) => ubahKaryawan(k.id, { password: e.target.value })}
+                    />
                   </td>
                   <td className="py-2 pr-3">
                     <Input

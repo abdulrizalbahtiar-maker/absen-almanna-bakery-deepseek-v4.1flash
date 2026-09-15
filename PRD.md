@@ -5,7 +5,7 @@
 | Field | Nilai |
 |-------|-------|
 | Nama Proyek | Sistem Absensi Al Manna Bakery |
-| Versi PRD | 1.4 (revisi: tarif denda keterlambatan + toleransi global, hapus karyawan, dashboard karyawan = rekap bulan berjalan, Rekap admin-only) |
+| Versi PRD | 1.5 (revisi: login email+password, kolom password mode mock, tambah karyawan sertakan password) |
 | Tanggal | 2026-09-14 |
 | Bahasa | Indonesia |
 | Status | Approved untuk implementasi |
@@ -55,6 +55,7 @@
 | Mode_Mock | Fase frontend tanpa Supabase: user memilih akun dari dropdown, session disimpan di `localStorage`. Middleware mendeteksi cookie `mock_session` dan melewati pengecekan Supabase (lihat bab 9.5). |
 | Shift Fleksibel | Setiap karyawan punya `jam_masuk_standar` dan `jam_pulang_standar` sendiri di `profiles`. |
 | Reset Transaksional | Hapus `attendance` + `overtime_requests`. Jangan hapus `profiles` dan `settings`. |
+| Password_Mock | Kolom `profiles.password` (plaintext) HANYA untuk mode mock/frontend. Login memverifikasi email + password dari kolom ini. Di produksi (Fase 5) password ditangani Supabase Auth dan kolom ini tidak dipakai/di-drop. |
 
 ## 3. Tujuan Dan Success Metrics
 
@@ -90,7 +91,7 @@
 
 Aturan auth:
 
-- Login memakai Supabase Auth email + password.
+- Login memakai email + password. Di mode mock, verifikasi terhadap `profiles.password`; di produksi lewat Supabase Auth.
 - Kolom `profiles.role` menentukan role. Nilai: `karyawan` atau `admin`.
 - Middleware proteksi semua route `/dashboard`, `/attendance`, `/overtime`, `/reports`, `/settings`.
 - RLS Supabase enforce di database, bukan hanya di UI.
@@ -133,13 +134,14 @@ Format untuk AI: setiap story punya ID, aksi, AC checklist, dan dampak DB.
 
 | ID | Sebagai | Saya Ingin | Acceptance Criteria | DB Impact |
 |----|---------|------------|---------------------|-----------|
+| US-00 | semua | login | 1. Input email + password. 2. Email tidak terdaftar => pesan "Email tidak terdaftar." 3. Password salah => "Password salah." 4. Field kosong => "Email dan password wajib diisi." 5. Cocok (mode mock: `profiles.password`) => sesi dibuat, redirect `/dashboard`. | baca `profiles` (mode mock) |
 | US-01 | karyawan | check-in dengan GPS | 1. Tombol aktif setelah lokasi didapat. 2. Akurasi GPS dicatat sebagai log, tidak memblokir absen. 3. Jika jarak <= radius maka `status_radius_masuk=Valid` dan tersimpan. 4. Jika jarak > radius: bila `tolak_diluar_radius=true` → tolak total (tidak ada baris tersimpan, tampilkan jarak meter); bila `false` → simpan dengan `status_radius_masuk=DiLuarRadius` untuk review admin. 5. Duplikat check-in hari sama (baris `profile_id + tanggal` sudah ada) ditolak. 6. `menit_terlambat` terhitung otomatis. 7. `tanggal` dihitung di timezone `Asia/Makassar`. | INSERT `attendance` 1 baris per user per tanggal |
 | US-02 | karyawan | check-out dengan GPS | 1. Tolak jika belum ada baris absen hari itu. 2. Tolak jika `jam_pulang` sudah terisi (duplikat). 3. Validasi radius sama seperti US-01; akurasi dicatat saja. 4. Isi `jam_pulang`, `lat_pulang`, `lng_pulang`, `status_radius_pulang`. | UPDATE `attendance.jam_pulang` |
 | US-03 | sistem | hitung keterlambatan | 1. `menit_terlambat = MAX(0, jam_masuk_aktual - profiles.jam_masuk_standar)`. 2. Tepat waktu = 0. 3. Contoh: standar 08:00, aktual 08:25 => 25. 4. Diisi hanya saat insert check-in, tidak berubah saat check-out. | kolom `attendance.menit_terlambat` |
 | US-04 | karyawan | ajukan lembur | 1. Input tanggal, jam_mulai, jam_selesai, alasan wajib. 2. `jam_selesai > jam_mulai` (sama hari). 3. `total_jam = selisih desimal 2 digit`. Contoh 18:00-20:30 => 2.5. 4. Tanggal tidak boleh lebih dari 7 hari di masa depan (timezone aplikasi) atau di masa lalu (kecuali diizinkan admin; v1 tolak masa lalu). 5. `alasan` minimal 10 karakter. 6. Status awal `Pending`. | INSERT `overtime_requests` |
 | US-05 | karyawan | edit/hapus lembur Pending | 1. Hanya milik sendiri. 2. Hanya jika `status=Pending`. 3. Setelah edit hitung ulang `total_jam` dan validasi ulang. | UPDATE/DELETE `overtime_requests` |
 | US-06 | admin | approve/reject lembur | 1. Lihat list Pending. 2. Approve => `status=Approved`, isi `approved_by` (uuid admin), `tanggal_persetujuan` (timezone aplikasi), hitung `nominal = total_jam * profiles.tarif_lembur_per_jam` milik pengaju. 3. Reject wajib `catatan_admin`. 4. Transisi dari status selain Pending ditolak 400. | UPDATE `overtime_requests` |
-| US-07 | admin | kelola karyawan + jam + tarif per karyawan | 1. Create karyawan: nama, email, jabatan, jam_masuk_standar, jam_pulang_standar, tarif_lembur_per_jam (default dari settings: jam default + tarif default). 2. Update jam/tarif per karyawan kapan saja. Berlaku untuk absen/approval berikutnya, tidak ubah histori. 3. Nonaktifkan tanpa hapus (kolom `is_active`). | INSERT/UPDATE `profiles` |
+| US-07 | admin | kelola karyawan + jam + tarif + password | 1. Create karyawan: nama, email, jabatan, password (wajib, min 6 char, pre-fill `password123`), jam_masuk_standar, jam_pulang_standar, tarif_lembur_per_jam, tarif_denda_per_jam (default dari settings). 2. Email duplikat ditolak. 3. Update jam/tarif/password/email per karyawan kapan saja. Berlaku untuk absen/approval berikutnya, tidak ubah histori. 4. Hapus karyawan (pop up konfirmasi) menghapus profil + transaksi terkait; akun admin tidak bisa dihapus. | INSERT/UPDATE/DELETE `profiles` |
 | US-08 | admin | atur kantor + default baru | 1. Update lat, lng, radius_meter, jam default, tarif default, `tolak_diluar_radius`. 2. Perubahan tarif default hanya berlaku untuk karyawan baru. Perubahan tarif per karyawan hanya berlaku untuk approval berikutnya. Rekap histori pakai `nominal` yang tersimpan, bukan tarif baru. | UPDATE `settings id=1` |
 | US-09 | semua | lihat rekap keterlambatan | 1. Filter `tanggal_mulai` dan `tanggal_akhir` wajib, inklusif, timezone aplikasi. 2. Karyawan hanya lihat miliknya. Admin lihat semua. 3. Semua karyawan aktif tetap tampil walau 0 absen. 4. Kolom: nama, total_hari_hadir, total_hari_telat, total_menit_telat, total_jam_telat (menit/60, 2 desimal). | SELECT + agregasi `attendance` JOIN `profiles` |
 | US-10 | semua | lihat rekap lembur + nominal | 1. Filter periode wajib. 2. Hanya `status=Approved` dihitung. 3. Kolom: nama, total_pengajuan_approved, total_jam, tarif_per_karyawan (info terkini), nominal. 4. `nominal = SUM(nominal_tersimpan)` per karyawan. 5. Semua karyawan aktif tetap tampil (0 jika tidak ada Approved). | SELECT `overtime_requests WHERE Approved` |
@@ -310,6 +312,8 @@ erDiagram
         time jam_masuk_standar
         time jam_pulang_standar
         int tarif_lembur_per_jam
+        int tarif_denda_per_jam
+        string password
         boolean is_active
     }
     settings {
@@ -471,6 +475,7 @@ create table profiles (
   jam_pulang_standar time not null default '17:00',
   tarif_lembur_per_jam int not null default 20000 check (tarif_lembur_per_jam >= 0),
   tarif_denda_per_jam int not null default 0 check (tarif_denda_per_jam >= 0),
+  password text not null default 'password123',
   is_active boolean not null default true,
   created_at timestamptz default now()
 );
@@ -540,7 +545,7 @@ create table activity_logs (
 );
 ```
 
-Catatan tipe: `overtime_requests.approved_by` bertipe `uuid` mereferensikan `profiles(id)`, bukan `text`. `nominal` tetap `int` (aman untuk skala ini); jika nominal per pengajuan berpotensi > 2 miliar, ganti ke `bigint` (saat ini tidak perlu).
+Catatan tipe: `overtime_requests.approved_by` bertipe `uuid` mereferensikan `profiles(id)`, bukan `text`. `nominal` tetap `int` (aman untuk skala ini); jika nominal per pengajuan berpotensi > 2 miliar, ganti ke `bigint` (saat ini tidak perlu). Kolom `profiles.password` (plaintext) HANYA untuk mode mock; di Fase 5 di-drop dan digantikan Supabase Auth.
 
 ### 9.2 Views Mentah (Bukan Agregasi Final)
 
@@ -592,7 +597,7 @@ Aturan mock:
 
 - Settings mock: `latitude -4.030128`, `longitude 122.473738`, `radius_meter 100`, `tarif_default 20000`, `tolak_diluar_radius true`.
 - Mock GPS: konstanta `SIMULASI_GPS` di `mockData.ts` dipakai HANYA untuk unit test otomatis (bukan tombol di UI). Titik: `diKantor` `-4.030128, 122.473738` akurasi `15` (Valid). `diLuar` `-4.035, 122.480` akurasi `15` (jarak terukur ~881 m, tetap di luar radius 100 m, DiLuarRadius). `akurasiBuruk` koordinat kantor akurasi `150` (tetap DITERIMA karena akurasi tidak memblokir; hanya dicatat). Halaman Attendance tidak punya tombol simulasi; hanya tombol `Ambil lokasi` memakai GPS asli.
-- Semua password mock: `password123`. Login hanya pilih user dari dropdown, tanpa Supabase.
+- Semua password mock default: `password123`. Login pakai **email + password**, diverifikasi terhadap `profiles.password` (tanpa Supabase). Admin mengetik password sendiri saat menambah karyawan (form pre-fill `password123`), dan password tiap karyawan bisa diubah dari tabel Pengaturan.
 
 ### 9.4 RLS Policies (Wajib, Bebas Recursion)
 
@@ -806,6 +811,7 @@ Alternatif ditolak: GAS + Sheets (limit 6 menit eksekusi, tanpa RLS, susah Excel
 - Bahasa UI Indonesia.
 - Tema bakery: primary `#d97706`, background `#fffdf5`, font Nunito.
 - Log semua aksi admin sensitif (approve, ubah settings, reset) ke `activity_logs`.
+- **Password**: di mode mock disimpan plaintext di `profiles.password` (khusus testing, jangan dipakai di produksi). Di Fase 5 (produksi) password ditangani Supabase Auth; kolom `password` di-drop dan login memakai `supabase.auth.signInWithPassword`.
 
 ## 14. Roadmap Fase (Gantt)
 

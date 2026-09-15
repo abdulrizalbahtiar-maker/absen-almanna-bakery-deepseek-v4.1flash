@@ -15,6 +15,8 @@ export interface Profile {
   tarif_lembur_per_jam: number;
   tarif_denda_per_jam: number;
   is_active: boolean;
+  /** Hanya untuk mode mock (plaintext). Di produksi dipakai Supabase Auth. */
+  password: string;
 }
 
 export interface Settings {
