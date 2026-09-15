@@ -6,6 +6,7 @@ import OfficeMap from "@/components/map/OfficeMapDynamic";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardTitle } from "@/components/ui/Card";
+import { Spinner } from "@/components/ui/Spinner";
 import { Toast } from "@/components/ui/Toast";
 import { jarakKeKantor } from "@/lib/geo";
 import {
@@ -25,6 +26,7 @@ export default function AttendancePage() {
   const { profile } = useSesi();
   const [geo, setGeo] = useState<GeoPoint | null>(null);
   const [loading, setLoading] = useState(false);
+  const [gagal, setGagal] = useState(false);
   const [toast, setToast] = useState<{ pesan: string; tipe: TipeToast } | null>(null);
   const versi = useMockVersi();
 
@@ -59,6 +61,7 @@ export default function AttendancePage() {
       return;
     }
     setLoading(true);
+    setGagal(false);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setGeo({
@@ -67,12 +70,29 @@ export default function AttendancePage() {
           akurasi: pos.coords.accuracy,
         });
         setLoading(false);
+        setGagal(false);
       },
-      () => {
-        setToast({ pesan: "Izin lokasi ditolak. Aktifkan GPS.", tipe: "error" });
+      (err) => {
         setLoading(false);
+        setGagal(true);
+        if (err.code === err.PERMISSION_DENIED) {
+          setToast({
+            pesan: "Izin lokasi diblokir. Buka pengaturan izin situs lalu izinkan lokasi.",
+            tipe: "error",
+          });
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          setToast({
+            pesan: "Posisi tidak tersedia. Pindah ke area terbuka lalu coba lagi.",
+            tipe: "error",
+          });
+        } else {
+          setToast({
+            pesan: "Waktu habis mencari lokasi (30 dtk). Coba lagi atau pindah ke area terbuka.",
+            tipe: "error",
+          });
+        }
       },
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 30000 },
     );
   }, []);
 
@@ -111,9 +131,26 @@ export default function AttendancePage() {
         <CardTitle>Lokasi</CardTitle>
         <div className="flex flex-wrap gap-2">
           <Button onClick={ambilLokasi} disabled={loading}>
-            {loading ? "Mengambil…" : "Ambil lokasi"}
+            {loading ? (
+              <>
+                <Spinner ukuran="sm" /> Mencari lokasi…
+              </>
+            ) : (
+              "Ambil lokasi"
+            )}
           </Button>
+          {gagal && !loading && (
+            <Button varian="outline" onClick={ambilLokasi}>
+              Coba lagi
+            </Button>
+          )}
         </div>
+
+        {loading && (
+          <p className="mt-3 flex items-center gap-2 text-xs font-semibold text-ink-soft">
+            <Spinner ukuran="sm" className="text-primary" /> Mencari sinyal GPS…
+          </p>
+        )}
 
         {geo && (
           <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
