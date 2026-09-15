@@ -8,7 +8,7 @@ const MENU = [
   { href: "/dashboard", label: "Dashboard", adminSaja: false },
   { href: "/attendance", label: "Absen", adminSaja: false },
   { href: "/overtime", label: "Lembur", adminSaja: false },
-  { href: "/reports", label: "Rekap", adminSaja: false },
+  { href: "/reports", label: "Rekap", adminSaja: true },
   { href: "/settings", label: "Pengaturan", adminSaja: true },
 ];
 

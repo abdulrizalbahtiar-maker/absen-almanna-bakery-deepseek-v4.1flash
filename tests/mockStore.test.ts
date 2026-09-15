@@ -9,6 +9,8 @@ import {
   editLembur,
   resetTransaksi,
   getOvertime,
+  getProfiles,
+  hapusKaryawan,
   resetStateMock,
 } from "@/lib/mockStore";
 import { SIMULASI_GPS, cariProfile } from "@/lib/mockData";
@@ -130,5 +132,54 @@ describe("agregasi rekap", () => {
     expect(getOvertime().length).toBe(0);
     expect(rekapKeterlambatan("2000-01-01", "2100-01-01").length).toBe(8);
     expect(cariProfile("mock-admin-1")).toBeTruthy();
+  });
+
+  it("rekap keterlambatan memuat kolom denda", () => {
+    const rows = rekapKeterlambatan("2000-01-01", "2100-01-01");
+    const kar01Row = rows.find((r) => r.profile_id === "mock-kar-01")!;
+    expect(kar01Row).toHaveProperty("tarif_denda_per_jam");
+    expect(kar01Row).toHaveProperty("total_menit_efektif");
+    expect(kar01Row).toHaveProperty("total_denda");
+
+    // Seed: kar01 telat 12 mnt (hari-1) + 0 mnt (hari-2).
+    // Toleransi 15 => efektif 0 => denda 0.
+    expect(kar01Row.total_menit_efektif).toBe(0);
+    expect(kar01Row.total_denda).toBe(0);
+  });
+
+  it("denda dihitung proporsional di atas toleransi", () => {
+    // Seed kar03: telat 35 mnt, tarif denda 20000/jam, toleransi 15.
+    // efektif = 20 mnt => 20/60*20000 = 6666.67 => dibulatkan 6667.
+    const rows = rekapKeterlambatan("2000-01-01", "2100-01-01");
+    const kar03Row = rows.find((r) => r.profile_id === "mock-kar-03")!;
+    expect(kar03Row.total_menit_efektif).toBe(20);
+    expect(kar03Row.total_denda).toBe(6667);
+  });
+});
+
+describe("hapus karyawan", () => {
+  it("menghapus profile + transaksi terkait, master lain aman", () => {
+    const sebelum = getProfiles().length;
+    const adaAbsen = rekapKeterlambatan("2000-01-01", "2100-01-01").some(
+      (r) => r.profile_id === "mock-kar-04",
+    );
+    expect(adaAbsen).toBe(true);
+
+    const hasil = hapusKaryawan("mock-kar-04");
+    expect(hasil.sukses).toBe(true);
+    expect(getProfiles().length).toBe(sebelum - 1);
+    expect(getProfiles().find((p) => p.id === "mock-kar-04")).toBeUndefined();
+
+    const masihAda = rekapKeterlambatan("2000-01-01", "2100-01-01").some(
+      (r) => r.profile_id === "mock-kar-04",
+    );
+    expect(masihAda).toBe(false);
+    expect(getProfiles().find((p) => p.id === "mock-admin-1")).toBeTruthy();
+  });
+
+  it("tidak bisa menghapus akun admin", () => {
+    const hasil = hapusKaryawan("mock-admin-1");
+    expect(hasil.sukses).toBe(false);
+    expect(getProfiles().find((p) => p.id === "mock-admin-1")).toBeTruthy();
   });
 });

@@ -20,3 +20,10 @@ export function hitungMenitTerlambat(
 export function hitungJamTerlambat(totalMenit: number): number {
   return Math.round((totalMenit / 60) * 100) / 100;
 }
+
+/** Durasi kerja dalam jam desimal dari jam masuk ke jam pulang. */
+export function durasiKerja(jamMasuk: string, jamPulang: string): number {
+  const selisihDetik = jamKeDetik(jamPulang) - jamKeDetik(jamMasuk);
+  if (selisihDetik <= 0) return 0;
+  return Math.round((selisihDetik / 3600) * 100) / 100;
+}

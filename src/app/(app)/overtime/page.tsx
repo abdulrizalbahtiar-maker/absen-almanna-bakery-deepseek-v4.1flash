@@ -16,6 +16,7 @@ import {
   keputusanAdmin,
 } from "@/lib/mockStore";
 import { hitungTotalJam } from "@/lib/overtime";
+import { formatRupiah } from "@/lib/format";
 import { useMockVersi } from "@/lib/useMockStore";
 import { useTanggalWita } from "@/lib/useTanggalWita";
 import type { OvertimeRequest, OvertimeStatus } from "@/types";
@@ -176,7 +177,7 @@ export default function OvertimePage() {
                     </p>
                     {o.status === "Approved" && (
                       <p className="mt-1 text-xs font-semibold text-success">
-                        Nominal Rp {o.nominal.toLocaleString("id-ID")}
+                        Nominal {formatRupiah(o.nominal)}
                       </p>
                     )}
                     {o.catatan_admin && (

@@ -7,6 +7,7 @@ import { Card, CardTitle } from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Input";
 import { Toast } from "@/components/ui/Toast";
 import { buatExcelRekap, namaFileRekap, unduhBlob } from "@/lib/excel";
+import { formatRupiah } from "@/lib/format";
 import { rekapKeterlambatan, rekapLembur } from "@/lib/mockStore";
 import { useMockVersi } from "@/lib/useMockStore";
 import { useTanggalWita } from "@/lib/useTanggalWita";
@@ -44,6 +45,8 @@ export default function ReportsPage() {
   }, [mulai, akhir, profile, hanyaMilikSaya, versi, siapPeriode]);
 
   const totalTelat = late.reduce((n, r) => n + r.total_menit_telat, 0);
+  const totalMenitEfektif = late.reduce((n, r) => n + r.total_menit_efektif, 0);
+  const totalDenda = late.reduce((n, r) => n + r.total_denda, 0);
   const totalNominal = ot.reduce((n, r) => n + r.total_nominal, 0);
 
   async function unduh() {
@@ -57,6 +60,10 @@ export default function ReportsPage() {
     } finally {
       setSibuk(false);
     }
+  }
+
+  if (profile && profile.role !== "admin") {
+    return <p className="text-sm text-ink-soft">Halaman ini hanya untuk admin.</p>;
   }
 
   return (
@@ -86,14 +93,16 @@ export default function ReportsPage() {
       <Card>
         <CardTitle>Keterlambatan</CardTitle>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="text-left text-xs text-ink-soft">
                 <th className="py-2 pr-3">Nama</th>
                 <th className="py-2 pr-3">Hadir</th>
                 <th className="py-2 pr-3">Telat</th>
                 <th className="py-2 pr-3">Menit</th>
-                <th className="py-2">Jam</th>
+                <th className="py-2 pr-3">Menit efektif</th>
+                <th className="py-2 pr-3">Denda/jam</th>
+                <th className="py-2">Total denda</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -103,7 +112,9 @@ export default function ReportsPage() {
                   <td className="py-2 pr-3">{r.total_hari_hadir}</td>
                   <td className="py-2 pr-3">{r.total_hari_telat}</td>
                   <td className="py-2 pr-3">{r.total_menit_telat}</td>
-                  <td className="py-2">{r.total_jam_telat}</td>
+                  <td className="py-2 pr-3">{r.total_menit_efektif}</td>
+                  <td className="py-2 pr-3">{formatRupiah(r.tarif_denda_per_jam)}</td>
+                  <td className="py-2 font-semibold text-danger">{formatRupiah(r.total_denda)}</td>
                 </tr>
               ))}
               {late.length > 0 && (
@@ -112,7 +123,9 @@ export default function ReportsPage() {
                   <td />
                   <td />
                   <td className="py-2 pr-3">{totalTelat}</td>
-                  <td className="py-2">{Math.round((totalTelat / 60) * 100) / 100}</td>
+                  <td className="py-2 pr-3">{totalMenitEfektif}</td>
+                  <td />
+                  <td className="py-2 text-danger">{formatRupiah(totalDenda)}</td>
                 </tr>
               )}
             </tbody>
@@ -140,8 +153,8 @@ export default function ReportsPage() {
                   <td className="py-2 pr-3 font-semibold text-ink">{r.nama}</td>
                   <td className="py-2 pr-3">{r.total_pengajuan_approved}</td>
                   <td className="py-2 pr-3">{r.total_jam}</td>
-                  <td className="py-2 pr-3">Rp {r.tarif_per_jam.toLocaleString("id-ID")}</td>
-                  <td className="py-2">Rp {r.total_nominal.toLocaleString("id-ID")}</td>
+                  <td className="py-2 pr-3">{formatRupiah(r.tarif_per_jam)}</td>
+                  <td className="py-2">{formatRupiah(r.total_nominal)}</td>
                 </tr>
               ))}
               {ot.length > 0 && (
@@ -150,7 +163,7 @@ export default function ReportsPage() {
                   <td />
                   <td />
                   <td />
-                  <td className="py-2">Rp {totalNominal.toLocaleString("id-ID")}</td>
+                  <td className="py-2">{formatRupiah(totalNominal)}</td>
                 </tr>
               )}
             </tbody>

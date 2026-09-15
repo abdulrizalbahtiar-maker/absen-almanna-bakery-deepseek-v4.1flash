@@ -11,10 +11,10 @@ import {
   MOCK_PROFILES,
   MOCK_SETTINGS,
   buatSeedTransaksi,
-  daftarKaryawanAktif,
 } from "./mockData";
 import { jarakKeKantor } from "./geo";
 import { hitungMenitTerlambat, hitungJamTerlambat } from "./late";
+import { hitungDendaHarian, menitEfektifTelat } from "./denda";
 import { hitungNominal, hitungTotalJam, validasiPengajuanLembur } from "./overtime";
 import { getJamLengkapWITA, getTanggalWITA } from "./time";
 
@@ -144,11 +144,27 @@ export function tambahKaryawan(input: {
     jam_masuk_standar: s.settings.jam_masuk_default,
     jam_pulang_standar: s.settings.jam_pulang_default,
     tarif_lembur_per_jam: s.settings.tarif_default,
+    tarif_denda_per_jam: 0,
     is_active: true,
   };
   s.profiles = [...s.profiles, baru];
   simpan(s);
   return baru;
+}
+
+/** Hapus karyawan permanen beserta transaksinya (absensi + lembur). */
+export function hapusKaryawan(id: string): { sukses: boolean; pesan: string } {
+  const s = baca();
+  const target = s.profiles.find((p) => p.id === id);
+  if (!target) return { sukses: false, pesan: "Karyawan tidak ditemukan." };
+  if (target.role === "admin") {
+    return { sukses: false, pesan: "Akun admin tidak bisa dihapus." };
+  }
+  s.profiles = s.profiles.filter((p) => p.id !== id);
+  s.attendance = s.attendance.filter((a) => a.profile_id !== id);
+  s.overtime = s.overtime.filter((o) => o.profile_id !== id);
+  simpan(s);
+  return { sukses: true, pesan: `${target.nama} dihapus.` };
 }
 
 // ---------- Attendance ----------
@@ -377,14 +393,31 @@ export function keputusanAdmin(
 
 // ---------- Agregasi ----------
 
+/** Karyawan aktif dari store (bukan konstanta mock). */
+function karyawanAktif(s: MockState): Profile[] {
+  return s.profiles.filter((p) => p.role === "karyawan" && p.is_active);
+}
+
 export function rekapKeterlambatan(mulai: string, akhir: string) {
   const s = baca();
+  const toleransi = s.settings.toleransi_telat_menit;
   const dalamPeriode = (t: string) => t >= mulai && t <= akhir;
-  return daftarKaryawanAktif().map((p) => {
+  return karyawanAktif(s).map((p) => {
     const rows = s.attendance.filter(
       (a) => a.profile_id === p.id && dalamPeriode(a.tanggal),
     );
     const total_menit_telat = rows.reduce((n, r) => n + r.menit_terlambat, 0);
+    const total_menit_efektif = rows.reduce(
+      (n, r) => n + menitEfektifTelat(r.menit_terlambat, toleransi),
+      0,
+    );
+    const total_denda = Math.round(
+      rows.reduce(
+        (n, r) =>
+          n + hitungDendaHarian(r.menit_terlambat, toleransi, p.tarif_denda_per_jam),
+        0,
+      ),
+    );
     return {
       profile_id: p.id,
       nama: p.nama,
@@ -394,6 +427,9 @@ export function rekapKeterlambatan(mulai: string, akhir: string) {
       total_menit_telat,
       total_jam_telat: hitungJamTerlambat(total_menit_telat),
       tarif_lembur_per_jam: p.tarif_lembur_per_jam,
+      tarif_denda_per_jam: p.tarif_denda_per_jam,
+      total_menit_efektif,
+      total_denda,
     };
   });
 }
@@ -401,7 +437,7 @@ export function rekapKeterlambatan(mulai: string, akhir: string) {
 export function rekapLembur(mulai: string, akhir: string) {
   const s = baca();
   const dalamPeriode = (t: string) => t >= mulai && t <= akhir;
-  return daftarKaryawanAktif().map((p) => {
+  return karyawanAktif(s).map((p) => {
     const rows = s.overtime.filter(
       (o) =>
         o.profile_id === p.id &&
@@ -424,7 +460,7 @@ export function statistikHariIni() {
   const s = baca();
   const hari = getTanggalWITA();
   const hadir = s.attendance.filter((a) => a.tanggal === hari);
-  const totalAktif = daftarKaryawanAktif().length;
+  const totalAktif = karyawanAktif(s).length;
   return {
     totalAktif,
     hadir: hadir.length,

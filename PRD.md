@@ -5,7 +5,7 @@
 | Field | Nilai |
 |-------|-------|
 | Nama Proyek | Sistem Absensi Al Manna Bakery |
-| Versi PRD | 1.3 (revisi: RLS bebas recursion, `approved_by` uuid, timezone, aturan check-in/out, `tolak_diluar_radius`, view vs agregasi, anti-spoof ringan) |
+| Versi PRD | 1.4 (revisi: tarif denda keterlambatan + toleransi global, hapus karyawan, dashboard karyawan = rekap bulan berjalan, Rekap admin-only) |
 | Tanggal | 2026-09-14 |
 | Bahasa | Indonesia |
 | Status | Approved untuk implementasi |
@@ -34,6 +34,9 @@
 | `profiles` | Tabel karyawan + admin. Satu baris = satu user. Berisi jam standar dan tarif lembur per karyawan. |
 | `settings` | Tabel konfigurasi global. Hanya 1 baris `id=1`. Berisi lat, lng, radius, jam default, `tolak_diluar_radius`. Tidak ada tarif per karyawan. |
 | `Tarif_Per_Karyawan` | Kolom `profiles.tarif_lembur_per_jam`. Beda tiap karyawan, diatur admin. Satuan Rp/jam. |
+| `Tarif_Denda` | Kolom `profiles.tarif_denda_per_jam`. Tarif denda keterlambatan per karyawan. Satuan Rp/jam. Diatur admin di halaman Pengaturan. |
+| `Toleransi_Telat` | Kolom `settings.toleransi_telat_menit`. Satu nilai global (default 15 menit). Telat di bawah/di dalam toleransi tidak dikenai denda. |
+| `Denda_Keterlambatan` | `(menit_efektif / 60) × tarif_denda_per_jam`, dengan `menit_efektif = MAX(0, menit_terlambat - toleransi_telat_menit)`. Proporsional, dibulatkan ke rupiah terdekat saat direkap. |
 | `attendance` | Tabel transaksi absen harian. Satu baris = satu karyawan + satu tanggal. |
 | `overtime_requests` | Tabel pengajuan lembur. Satu baris = satu pengajuan. |
 | `activity_logs` | Tabel audit aksi sensitif. **Nama baku: `activity_logs`** (bukan `aktivitas_logs`). Tidak ikut terhapus reset. |
@@ -107,7 +110,7 @@ Aturan auth:
 - [ ] S7: Pengajuan lembur: tanggal, jam_mulai, jam_selesai, alasan. Hitung `total_jam` otomatis.
 - [ ] S8: Edit dan hapus lembur hanya jika `status=Pending` dan milik sendiri (atau admin).
 - [ ] S9: Approve dan Reject lembur oleh admin + catatan_admin.
-- [ ] S10: Rekap keterlambatan per karyawan per periode: total_hari_telat, total_menit_telat, total_jam_telat.
+- [ ] S10: Rekap keterlambatan per karyawan per periode: total_hari_telat, total_menit_telat, total_jam_telat, total_menit_efektif, total_denda.
 - [ ] S11: Rekap lembur per karyawan per periode: total_jam_approved, tarif per karyawan, nominal = total_jam * tarif_per_karyawan.
 - [ ] S12: Export Excel .xlsx 2 sheet + filter periode.
 - [ ] S13: Reset database transaksional oleh admin saja.
@@ -428,6 +431,21 @@ Validasi minimal:
 3. Jika browser mendukung dan menyediakan `coords` tambahan, simpan `sumber_lokasi` (`gps`/`network`/`unknown`) bila ada. Opsional, tidak blocking.
 4. Flag anomali (tidak blocking v1, tampilkan badge di halaman admin): dua check-in berturut-turut dengan kecepatan tak wajar (> 200 km/jam). Boleh ditunda ke v2, catat sebagai TODO eksplisit.
 
+### 8.6 Denda Keterlambatan
+
+```text
+menit_efektif = MAX(0, menit_terlambat - settings.toleransi_telat_menit)
+denda_harian  = (menit_efektif / 60) * profiles.tarif_denda_per_jam
+total_denda   = ROUND(SUM(denda_harian dalam periode))
+```
+
+- Toleransi bersifat GLOBAL (satu nilai di `settings`), berlaku untuk semua karyawan.
+- Tarif denda per jam bersifat PER KARYAWAN di `profiles.tarif_denda_per_jam`.
+- Proporsional: menit tidak dibulatkan ke jam penuh.
+- Contoh: tarif Rp 10.000/jam, toleransi 15 mnt, telat 61 mnt => efektif 46 mnt => 46/60 × 10.000 = Rp 7.667.
+- Di bawah/di dalam toleransi => denda 0. Tarif 0 => denda 0.
+- Total denda tampil di dashboard karyawan (bulan berjalan) dan di rekap keterlambatan admin + sheet Excel.
+
 ## 9. Struktur Data Supabase (DDL Acuan)
 
 AI harus buat migrasi sesuai skema ini. Jangan tambah tabel tanpa update PRD.
@@ -452,6 +470,7 @@ create table profiles (
   jam_masuk_standar time not null default '08:00',
   jam_pulang_standar time not null default '17:00',
   tarif_lembur_per_jam int not null default 20000 check (tarif_lembur_per_jam >= 0),
+  tarif_denda_per_jam int not null default 0 check (tarif_denda_per_jam >= 0),
   is_active boolean not null default true,
   created_at timestamptz default now()
 );
@@ -464,12 +483,13 @@ create table settings (
   longitude double precision not null,
   radius_meter int not null default 100 check (radius_meter > 0),
   tarif_default int not null default 20000 check (tarif_default >= 0),
+  toleransi_telat_menit int not null default 15 check (toleransi_telat_menit >= 0),
   jam_masuk_default time not null default '08:00',
   jam_pulang_default time not null default '17:00',
   tolak_diluar_radius boolean not null default true
 );
-insert into settings (id, nama_lokasi, latitude, longitude, radius_meter, tarif_default, jam_masuk_default, jam_pulang_default, tolak_diluar_radius)
-values (1, 'Al Manna Bakery - Kantor Pusat', -4.030128, 122.473738, 100, 20000, '08:00', '17:00', true)
+insert into settings (id, nama_lokasi, latitude, longitude, radius_meter, tarif_default, toleransi_telat_menit, jam_masuk_default, jam_pulang_default, tolak_diluar_radius)
+values (1, 'Al Manna Bakery - Kantor Pusat', -4.030128, 122.473738, 100, 20000, 15, '08:00', '17:00', true)
 on conflict (id) do nothing;
 
 -- attendance: unik per karyawan per tanggal
@@ -691,11 +711,11 @@ Karena middleware (bab 4, 7.4) mengecek session Supabase, fase frontend dummy bu
 | Route | Role | Fungsi |
 |-------|------|--------|
 | `/login` | publik | Login email+password (atau dropdown mock di mode mock) |
-| `/dashboard` | semua | Statistik hari ini: hadir, telat, pending lembur |
+| `/dashboard` | semua | Karyawan: rekap capaian bulan berjalan (hadir, hari telat, menit telat, denda, jam lembur, nominal lembur). Admin: statistik hari ini. |
 | `/attendance` | semua | Peta Leaflet mode tampil + tombol check-in/out + riwayat pribadi (karyawan) atau semua (admin) |
 | `/overtime` | semua | List + form ajukan, approve/reject jika admin |
-| `/reports` | semua (karyawan dibatasi miliknya) | Filter periode + tabel rekap keterlambatan + rekap lembur + tombol Export Excel |
-| `/settings` | admin saja | Peta Leaflet mode picker + form lokasi, radius, jam default, tarif default, `tolak_diluar_radius` + kelola tarif per karyawan + tombol reset DB |
+| `/reports` | admin saja | Filter periode + tabel rekap keterlambatan (+ kolom denda) + rekap lembur + tombol Export Excel |
+| `/settings` | admin saja | Peta picker + lokasi, radius, jam default, tarif default, `tolak_diluar_radius`, **toleransi telat** + kelola karyawan (jam masuk/pulang, upah lembur, **tarif denda**, hapus) + reset DB |
 
 ### 10.2 API Routes (Server)
 
@@ -708,16 +728,17 @@ Karena middleware (bab 4, 7.4) mengecek session Supabase, fase frontend dummy bu
 | `PUT /api/overtime/[id]` | pemilik Pending | Tolak jika bukan Pending. Recalc total_jam + validasi ulang. |
 | `DELETE /api/overtime/[id]` | pemilik Pending | Tolak jika bukan Pending. |
 | `PATCH /api/overtime/[id]` | admin | Body `{action: Approve\|Reject, catatan}`. Reject wajib catatan. Approve: baca `profiles.tarif_lembur_per_jam` pengaju, hitung nominal, isi `approved_by` (uuid admin), simpan. Tolak jika bukan Pending (400). |
-| `GET /api/reports/late?from&to` | semua | Agregasi keterlambatan (bab 8.3). Semua karyawan aktif tampil. |
-| `GET /api/reports/overtime?from&to` | semua | Agregasi lembur Approved (bab 8.4). Semua karyawan aktif tampil. |
-| `GET /api/reports/export.xlsx?from&to` | semua (admin semua, karyawan miliknya) | Generate Excel 2 sheet via exceljs. |
+| `GET /api/reports/late?from&to` | admin | Agregasi keterlambatan (bab 8.3) + denda (bab 8.6). Semua karyawan aktif tampil. |
+| `GET /api/reports/overtime?from&to` | admin | Agregasi lembur Approved (bab 8.4). Semua karyawan aktif tampil. |
+| `GET /api/reports/export.xlsx?from&to` | admin | Generate Excel 2 sheet via exceljs (termasuk kolom denda). |
 | `GET /api/settings` | semua | Baca settings id=1. |
 | `PUT /api/settings` | admin | Update + tulis activity_logs. |
 | `POST /api/settings/reset` | admin | Body `{target: attendance\|overtime\|all}`. Hapus transaksi, jangan hapus master, tulis log + count. |
+| `DELETE /api/employees/[id]` | admin | Hapus karyawan permanen + transaksi terkait (absensi, lembur). Akun admin tidak bisa dihapus. Tulis activity_logs. |
 
-### 10.3 Definisi Dashboard Statistik Hari Ini
+### 10.3 Definisi Dashboard Statistik Hari Ini (Admin) dan Rekap Bulan Berjalan (Karyawan)
 
-Semua angka dihitung untuk `tanggal` = hari ini di timezone `Asia/Makassar`.
+**Admin** — dihitung untuk `tanggal` = hari ini di timezone `Asia/Makassar`.
 
 | Kartu | Definisi |
 |-------|----------|
@@ -727,13 +748,24 @@ Semua angka dihitung untuk `tanggal` = hari ini di timezone `Asia/Makassar`.
 | Belum Absen | Total Karyawan Aktif - Hadir |
 | Pending Lembur | `COUNT(overtime_requests WHERE status='Pending')` (seluruh waktu, bukan hanya hari ini) |
 
+**Karyawan** — rekap capaian bulan berjalan (tanggal 1 s/d hari ini, WITA).
+
+| Kartu | Definisi |
+|-------|----------|
+| Hadir | Jumlah baris attendance milik sendiri di bulan berjalan |
+| Hari telat | Jumlah hari `menit_terlambat > 0` |
+| Menit telat | `SUM(menit_terlambat)` |
+| Denda | `SUM(denda_harian)` sesuai bab 8.6 (`formatRupiah`) |
+| Jam lembur | `SUM(total_jam)` lembur Approved |
+| Nominal lembur | `SUM(nominal)` lembur Approved |
+
 ## 11. Spesifikasi Export Excel (exceljs Wajib)
 
 - Library: `exceljs`. Format: `.xlsx`. Jangan pakai CSV, jangan pakai `xlsx` (SheetJS).
 - Fase frontend (tanpa backend): generate client-side dari mock data via `exceljs` di browser. Tombol `Export Excel` langsung download.
 - Fase backend: pindahkan ke `GET /api/reports/export.xlsx` generate server-side stream.
 - Nama file: `rekap-YYYYMMDD-sampai-YYYYMMDD.xlsx` (tanggal timezone `Asia/Makassar`).
-- Sheet 1 `Keterlambatan`: kolom No | Nama | Jabatan | Total Hari Hadir | Total Hari Telat | Total Menit Telat | Total Jam Telat | + baris TOTAL. Baris = semua karyawan aktif (0 jika tidak ada data).
+- Sheet 1 `Keterlambatan`: kolom No | Nama | Jabatan | Total Hari Hadir | Total Hari Telat | Total Menit Telat | Total Jam Telat | Denda Per Jam | Total Menit Efektif | Total Denda | + baris TOTAL. Baris = semua karyawan aktif (0 jika tidak ada data).
 - Sheet 2 `Lembur`: kolom No | Nama | Jabatan | Total Pengajuan Approved | Total Jam | Tarif Per Jam (dari profiles) | Total Nominal (Rp, SUM tersimpan) | + baris TOTAL. Baris = semua karyawan aktif (0 jika tidak ada Approved).
 - Header bold + freeze pane. Kolom nominal format accounting Rp.
 - Jika seluruh periode tidak ada data sama sekali, sheet tetap ada dengan 1 baris `Tidak ada data periode ini` (selain header). Jika ada sebagian karyawan dengan 0, tetap tampilkan baris karyawan tersebut dengan nilai 0.

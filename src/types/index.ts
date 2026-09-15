@@ -13,6 +13,7 @@ export interface Profile {
   jam_masuk_standar: string;
   jam_pulang_standar: string;
   tarif_lembur_per_jam: number;
+  tarif_denda_per_jam: number;
   is_active: boolean;
 }
 
@@ -23,6 +24,7 @@ export interface Settings {
   longitude: number;
   radius_meter: number;
   tarif_default: number;
+  toleransi_telat_menit: number;
   jam_masuk_default: string;
   jam_pulang_default: string;
   tolak_diluar_radius: boolean;
@@ -83,6 +85,9 @@ export interface LateReportRow {
   total_menit_telat: number;
   total_jam_telat: number;
   tarif_lembur_per_jam: number;
+  tarif_denda_per_jam: number;
+  total_menit_efektif: number;
+  total_denda: number;
 }
 
 export interface OvertimeReportRow {

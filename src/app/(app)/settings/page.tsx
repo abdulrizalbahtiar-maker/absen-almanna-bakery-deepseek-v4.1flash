@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useSesi } from "@/components/SesiProvider";
 import OfficeMap from "@/components/map/OfficeMapDynamic";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Field, Input, Select } from "@/components/ui/Input";
@@ -11,15 +10,27 @@ import { Toast } from "@/components/ui/Toast";
 import {
   getProfiles,
   getSettings,
+  hapusKaryawan,
   resetTransaksi,
   tambahKaryawan,
   updateProfile,
   updateSettings,
 } from "@/lib/mockStore";
+import { durasiKerja } from "@/lib/late";
 import { useMockVersi } from "@/lib/useMockStore";
 import type { Profile, Settings } from "@/types";
 
 type TipeToast = "sukses" | "error" | "info";
+
+const KOLOM = [
+  "Nama",
+  "Jam masuk",
+  "Jam pulang",
+  "Jam kerja",
+  "Upah lembur/jam",
+  "Denda/jam",
+  "Aksi",
+];
 
 export default function SettingsPage() {
   const { profile } = useSesi();
@@ -55,6 +66,13 @@ export default function SettingsPage() {
 
   function ubahKaryawan(id: string, patch: Partial<Profile>) {
     updateProfile(id, patch);
+  }
+
+  function hapus(k: Profile) {
+    const yakin = window.confirm(`Hapus karyawan "${k.nama}" beserta seluruh riwayat absen & lemburnya?`);
+    if (!yakin) return;
+    const hasil = hapusKaryawan(k.id);
+    setToast({ pesan: hasil.pesan, tipe: hasil.sukses ? "sukses" : "error" });
   }
 
   function reset(target: "attendance" | "overtime" | "all") {
@@ -136,6 +154,16 @@ export default function SettingsPage() {
               onChange={(e) => setState({ ...state, tarif_default: Number(e.target.value) })}
             />
           </Field>
+          <Field label="Toleransi telat (menit)">
+            <Input
+              type="number"
+              min={0}
+              value={state.toleransi_telat_menit}
+              onChange={(e) =>
+                setState({ ...state, toleransi_telat_menit: Number(e.target.value) })
+              }
+            />
+          </Field>
           <Field label="Tolak di luar radius">
             <Select
               value={state.tolak_diluar_radius ? "true" : "false"}
@@ -179,42 +207,72 @@ export default function SettingsPage() {
           Tambah karyawan
         </Button>
 
-        <div className="mt-4 divide-y divide-border">
-          {daftar.map((k) => (
-            <div key={k.id} className="grid gap-2 py-3 sm:grid-cols-4 sm:items-center">
-              <div>
-                <p className="text-sm font-semibold text-ink">{k.nama}</p>
-                <p className="text-xs text-ink-soft">{k.jabatan}</p>
-              </div>
-              <Input
-                type="time"
-                value={k.jam_masuk_standar}
-                onChange={(e) => ubahKaryawan(k.id, { jam_masuk_standar: e.target.value })}
-              />
-              <Input
-                type="time"
-                value={k.jam_pulang_standar}
-                onChange={(e) => ubahKaryawan(k.id, { jam_pulang_standar: e.target.value })}
-              />
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  value={k.tarif_lembur_per_jam}
-                  onChange={(e) =>
-                    ubahKaryawan(k.id, { tarif_lembur_per_jam: Number(e.target.value) })
-                  }
-                />
-                <button
-                  onClick={() => ubahKaryawan(k.id, { is_active: !k.is_active })}
-                  title={k.is_active ? "Nonaktifkan" : "Aktifkan"}
-                >
-                  <Badge tone={k.is_active ? "sukses" : "bahaya"}>
-                    {k.is_active ? "Aktif" : "Nonaktif"}
-                  </Badge>
-                </button>
-              </div>
-            </div>
-          ))}
+        <div className="mt-4 -mx-4 overflow-x-auto px-4">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs text-ink-soft">
+                {KOLOM.map((h) => (
+                  <th key={h} className="py-2 pr-3 font-semibold">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {daftar.map((k) => (
+                <tr key={k.id}>
+                  <td className="py-2 pr-3">
+                    <p className="font-semibold text-ink">{k.nama}</p>
+                    <p className="text-xs text-ink-soft">{k.jabatan}</p>
+                  </td>
+                  <td className="py-2 pr-3">
+                    <Input
+                      type="time"
+                      value={k.jam_masuk_standar}
+                      onChange={(e) =>
+                        ubahKaryawan(k.id, { jam_masuk_standar: e.target.value })
+                      }
+                    />
+                  </td>
+                  <td className="py-2 pr-3">
+                    <Input
+                      type="time"
+                      value={k.jam_pulang_standar}
+                      onChange={(e) =>
+                        ubahKaryawan(k.id, { jam_pulang_standar: e.target.value })
+                      }
+                    />
+                  </td>
+                  <td className="py-2 pr-3 text-xs text-ink-soft">
+                    {durasiKerja(k.jam_masuk_standar, k.jam_pulang_standar)} jam
+                  </td>
+                  <td className="py-2 pr-3">
+                    <Input
+                      type="number"
+                      value={k.tarif_lembur_per_jam}
+                      onChange={(e) =>
+                        ubahKaryawan(k.id, { tarif_lembur_per_jam: Number(e.target.value) })
+                      }
+                    />
+                  </td>
+                  <td className="py-2 pr-3">
+                    <Input
+                      type="number"
+                      value={k.tarif_denda_per_jam}
+                      onChange={(e) =>
+                        ubahKaryawan(k.id, { tarif_denda_per_jam: Number(e.target.value) })
+                      }
+                    />
+                  </td>
+                  <td className="py-2">
+                    <Button varian="danger" onClick={() => hapus(k)}>
+                      Hapus
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Card>
 

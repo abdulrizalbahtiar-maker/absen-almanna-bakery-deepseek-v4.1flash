@@ -38,13 +38,16 @@ export async function buatExcelRekap(
     "Total Hari Telat",
     "Total Menit Telat",
     "Total Jam Telat",
+    "Denda Per Jam",
+    "Total Menit Efektif",
+    "Total Denda",
   ]);
 
   if (keterlambatan.length === 0) {
     s1.addRow(["Tidak ada data periode ini"]);
   } else {
     keterlambatan.forEach((r, i) => {
-      s1.addRow([
+      const row = s1.addRow([
         i + 1,
         r.nama,
         r.jabatan,
@@ -52,7 +55,12 @@ export async function buatExcelRekap(
         r.total_hari_telat,
         r.total_menit_telat,
         r.total_jam_telat,
+        r.tarif_denda_per_jam,
+        r.total_menit_efektif,
+        r.total_denda,
       ]);
+      row.getCell(8).numFmt = RUPIAH;
+      row.getCell(10).numFmt = RUPIAH;
     });
     const total = s1.addRow([
       "",
@@ -62,12 +70,16 @@ export async function buatExcelRekap(
       keterlambatan.reduce((n, r) => n + r.total_hari_telat, 0),
       keterlambatan.reduce((n, r) => n + r.total_menit_telat, 0),
       Math.round(keterlambatan.reduce((n, r) => n + r.total_jam_telat, 0) * 100) / 100,
+      "",
+      keterlambatan.reduce((n, r) => n + r.total_menit_efektif, 0),
+      keterlambatan.reduce((n, r) => n + r.total_denda, 0),
     ]);
     total.font = { bold: true };
+    total.getCell(10).numFmt = RUPIAH;
   }
 
   s1.columns.forEach((col, i) => {
-    col.width = [6, 20, 14, 16, 16, 18, 15][i] ?? 14;
+    col.width = [6, 20, 14, 16, 16, 18, 15, 16, 18, 16][i] ?? 14;
   });
   s1.views = [{ state: "frozen", ySplit: 1 }];
 
