@@ -12,7 +12,8 @@
 | Lokasi Output | `ABSEN-OPENCODE-MUSE-SPARK/PRD.md` |
 | Jumlah Akun | 9 akun total = 8 karyawan + 1 admin (skala target: 1 - 50 karyawan) |
 | Role | 2 role: `karyawan`, `admin` |
-| Stack Tetap | Next.js 15 App Router + TypeScript + Tailwind v4 + Leaflet + react-leaflet + Supabase Free + Netlify Starter + exceljs |
+| Stack Tetap | Next.js 16 App Router + TypeScript + Tailwind v4 + Leaflet + react-leaflet + Supabase Free + Netlify Starter + exceljs |
+| Catatan Versi | Terpasang Next.js 16.3.5 (bukan 15). Di v16: `middleware.ts` → `proxy.ts` (fungsi `proxy`), `next lint` dihapus (pakai `eslint`), Turbopack default, `cookies()`/`headers()` async. Tema tetap. |
 | Titik Kantor Tetap | `-4.030128, 122.473738` (default `settings.latitude`, `settings.longitude`) |
 | Radius Default | `100` meter, bisa diubah admin |
 | Timezone Aplikasi | `Asia/Makassar` (WITA, UTC+8). Semua "hari ini" dihitung dengan timezone ini, bukan timezone server. |
@@ -572,7 +573,7 @@ File `src/lib/mockData.ts` harus berisi persis 9 akun ini. Jangan pakai nama asl
 Aturan mock:
 
 - Settings mock: `latitude -4.030128`, `longitude 122.473738`, `radius_meter 100`, `tarif_default 20000`, `tolak_diluar_radius true`.
-- Mock GPS: tombol `Simulasi Di Kantor` kirim `-4.030128, 122.473738` akurasi `15` (Valid). Tombol `Simulasi Di Luar` kirim `-4.035, 122.480` akurasi `15` (jarak > 1km, DiLuarRadius). Tombol `Simulasi Akurasi Buruk` kirim koordinat kantor akurasi `150` (ditolak karena akurasi).
+- Mock GPS: tombol `Simulasi Di Kantor` kirim `-4.030128, 122.473738` akurasi `15` (Valid). Tombol `Simulasi Di Luar` kirim `-4.035, 122.480` akurasi `15` (jarak terukur ~881 m, tetap di luar radius 100 m, DiLuarRadius). Tombol `Simulasi Akurasi Buruk` kirim koordinat kantor akurasi `150` (ditolak karena akurasi).
 - Semua password mock: `password123`. Login hanya pilih user dari dropdown, tanpa Supabase.
 
 ### 9.4 RLS Policies (Wajib, Bebas Recursion)
@@ -680,7 +681,7 @@ Karena middleware (bab 4, 7.4) mengecek session Supabase, fase frontend dummy bu
 
 1. Env var `NEXT_PUBLIC_MOCK_MODE=true` mengaktifkan mode mock.
 2. Halaman `/login` menampilkan dropdown 9 akun mock. Saat dipilih, client set cookie `mock_session` = `id-mock` (mis. `mock-kar-01`) dan `mock_role`.
-3. Middleware: jika `NEXT_PUBLIC_MOCK_MODE=true` dan cookie `mock_session` ada, lewati pengecekan Supabase dan ambil role dari `mock_role`. Jika tidak ada cookie, redirect `/login`.
+3. Middleware: jika `NEXT_PUBLIC_MOCK_MODE=true` dan cookie `mock_session` ada, lewati pengecekan Supabase dan ambil role dari `mock_role`. Jika tidak ada cookie, redirect `/login`. Catatan teknis: di Next.js 16, middleware bernama `proxy.ts` dengan export `proxy`.
 4. Semua data absen/lembur dibaca/tulis ke state client (`localStorage`/store) yang di-seed dari `mockData.ts`. TIDAK memanggil Supabase.
 5. Export Excel fase frontend generate dari state mock via `exceljs` di browser.
 6. Saat `NEXT_PUBLIC_MOCK_MODE=false` (fase backend), cookie `mock_session` diabaikan total dan middleware kembali cek Supabase.
