@@ -41,6 +41,23 @@ Lalu jalankan patch perbaikan advisor: buka
 `supabase/migrations/0002_advisor_fixes.sql`, tempel di SQL Editor, **Run**.
 (Menghapus view lama + memindahkan `is_admin()` ke schema `private`.)
 
+### Troubleshooting migrasi
+
+- **Jangan hapus file 0001** setelah dijalankan. Perbaikan dibuat sebagai file
+  baru (0002), bukan dengan mengedit file yang sudah dijalankan.
+- Jika 0002 gagal dengan `2BP01 cannot drop function is_admin() because other
+  objects depend on it`, jalankan dulu di SQL Editor:
+
+  ```sql
+  drop function if exists public.is_admin() cascade;
+  ```
+
+  lalu jalankan ulang `0002_advisor_fixes.sql`. File 0002 versi terbaru sudah
+  diurutkan benar (drop policy → drop function → create policy), jadi untuk
+  instalasi baru tidak perlu langkah ini.
+- Setelah selesai, cek menu **Advisors** di Supabase — error view & warning
+  `is_admin` harus hilang.
+
 ## 4. Seed akun awal (9 akun)
 
 ```bash
