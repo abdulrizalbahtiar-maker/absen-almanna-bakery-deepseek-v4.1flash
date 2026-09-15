@@ -146,12 +146,6 @@ export default function AttendancePage() {
           )}
         </div>
 
-        {loading && (
-          <p className="mt-3 flex items-center gap-2 text-xs font-semibold text-ink-soft">
-            <Spinner ukuran="sm" className="text-primary" /> Mencari sinyal GPS…
-          </p>
-        )}
-
         {geo && (
           <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
             <div>
