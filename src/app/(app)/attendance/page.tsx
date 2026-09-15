@@ -15,8 +15,8 @@ import {
   getSettings,
   prosesAbsen,
 } from "@/lib/mockStore";
-import { getTanggalWITA } from "@/lib/time";
 import { useMockVersi } from "@/lib/useMockStore";
+import { useTanggalWita } from "@/lib/useTanggalWita";
 import type { GeoPoint } from "@/types";
 
 type TipeToast = "sukses" | "error" | "info";
@@ -38,8 +38,9 @@ export default function AttendancePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [versi]);
 
-  const hari = getTanggalWITA();
-  const absenHariIni = profile ? cariAttendance(profile.id, hari) : undefined;
+  const hari = useTanggalWita();
+  const absenHariIni =
+    profile && hari ? cariAttendance(profile.id, hari) : undefined;
   const sudahMasuk = Boolean(absenHariIni?.jam_masuk);
   const sudahPulang = Boolean(absenHariIni?.jam_pulang);
 
@@ -92,7 +93,8 @@ export default function AttendancePage() {
       <div>
         <h1 className="text-base font-extrabold text-ink">Absen</h1>
         <p className="text-xs text-ink-soft">
-          {hari} · WITA · shift {profile.jam_masuk_standar}-{profile.jam_pulang_standar}
+          {hari ? `${hari} · WITA · ` : ""}shift {profile.jam_masuk_standar}-
+          {profile.jam_pulang_standar}
         </p>
       </div>
 

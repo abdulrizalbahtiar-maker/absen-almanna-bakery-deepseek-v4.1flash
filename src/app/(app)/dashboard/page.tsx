@@ -3,11 +3,11 @@
 import { useMemo } from "react";
 import { Card } from "@/components/ui/Card";
 import { statistikHariIni } from "@/lib/mockStore";
-import { getTanggalWITA } from "@/lib/time";
 import { useMockVersi } from "@/lib/useMockStore";
+import { useTanggalWita } from "@/lib/useTanggalWita";
 
 export default function DashboardPage() {
-  const hari = getTanggalWITA();
+  const hari = useTanggalWita();
   const versi = useMockVersi();
   // versi sengaja jadi pemicu: mockStore bukan sumber reaktif.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -23,7 +23,7 @@ export default function DashboardPage() {
   return (
     <div>
       <h1 className="text-base font-extrabold text-ink">Dashboard</h1>
-      <p className="mb-4 text-xs text-ink-soft">{hari} · WITA</p>
+      <p className="mb-4 text-xs text-ink-soft">{hari ? `${hari} · WITA` : "\u00A0"}</p>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {kartu.map((k) => (

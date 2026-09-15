@@ -16,8 +16,8 @@ import {
   keputusanAdmin,
 } from "@/lib/mockStore";
 import { hitungTotalJam } from "@/lib/overtime";
-import { getTanggalWITA } from "@/lib/time";
 import { useMockVersi } from "@/lib/useMockStore";
+import { useTanggalWita } from "@/lib/useTanggalWita";
 import type { OvertimeRequest, OvertimeStatus } from "@/types";
 
 type TipeToast = "sukses" | "error" | "info";
@@ -32,6 +32,7 @@ function toneStatus(status: OvertimeStatus) {
 export default function OvertimePage() {
   const { profile } = useSesi();
   const versi = useMockVersi();
+  const hariIni = useTanggalWita();
   const [form, setForm] = useState(FORM_KOSONG);
   const [toast, setToast] = useState<{ pesan: string; tipe: TipeToast } | null>(null);
 
@@ -112,7 +113,7 @@ export default function OvertimePage() {
               <Input
                 type="date"
                 value={form.tanggal}
-                max={getTanggalWITA()}
+                max={hariIni ?? undefined}
                 onChange={(e) => setForm({ ...form, tanggal: e.target.value })}
               />
             </Field>

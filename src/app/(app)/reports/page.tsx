@@ -8,38 +8,40 @@ import { Field, Input } from "@/components/ui/Input";
 import { Toast } from "@/components/ui/Toast";
 import { buatExcelRekap, namaFileRekap, unduhBlob } from "@/lib/excel";
 import { rekapKeterlambatan, rekapLembur } from "@/lib/mockStore";
-import { getTanggalWITA } from "@/lib/time";
 import { useMockVersi } from "@/lib/useMockStore";
+import { useTanggalWita } from "@/lib/useTanggalWita";
 
 type TipeToast = "sukses" | "error" | "info";
 
-function awalBulan(): string {
-  return `${getTanggalWITA().slice(0, 7)}-01`;
-}
-
 export default function ReportsPage() {
   const { profile } = useSesi();
-  const [mulai, setMulai] = useState(awalBulan);
-  const [akhir, setAkhir] = useState(getTanggalWITA);
+  const [mulaiManual, setMulai] = useState<string | null>(null);
+  const [akhirManual, setAkhir] = useState<string | null>(null);
   const versi = useMockVersi();
   const [sibuk, setSibuk] = useState(false);
   const [toast, setToast] = useState<{ pesan: string; tipe: TipeToast } | null>(null);
 
+  const hariIni = useTanggalWita();
+  // Periode default diturunkan (bukan setState di effect) agar aman hidrasi.
+  const mulai = mulaiManual ?? (hariIni ? `${hariIni.slice(0, 7)}-01` : "");
+  const akhir = akhirManual ?? hariIni ?? "";
+
+  const siapPeriode = mulai !== "" && akhir !== "";
   const hanyaMilikSaya = profile?.role !== "admin";
 
   const late = useMemo(() => {
-    if (!profile || mulai > akhir) return [];
+    if (!profile || !siapPeriode || mulai > akhir) return [];
     const rows = rekapKeterlambatan(mulai, akhir);
     return hanyaMilikSaya ? rows.filter((r) => r.profile_id === profile.id) : rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mulai, akhir, profile, hanyaMilikSaya, versi]);
+  }, [mulai, akhir, profile, hanyaMilikSaya, versi, siapPeriode]);
 
   const ot = useMemo(() => {
-    if (!profile || mulai > akhir) return [];
+    if (!profile || !siapPeriode || mulai > akhir) return [];
     const rows = rekapLembur(mulai, akhir);
     return hanyaMilikSaya ? rows.filter((r) => r.profile_id === profile.id) : rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mulai, akhir, profile, hanyaMilikSaya, versi]);
+  }, [mulai, akhir, profile, hanyaMilikSaya, versi, siapPeriode]);
 
   const totalTelat = late.reduce((n, r) => n + r.total_menit_telat, 0);
   const totalNominal = ot.reduce((n, r) => n + r.total_nominal, 0);
