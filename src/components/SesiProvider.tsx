@@ -7,7 +7,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
   type ReactNode,
 } from "react";
 import type { Profile } from "@/types";
@@ -34,27 +33,28 @@ export function SesiProvider({
   children: ReactNode;
 }) {
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(profileAwal);
 
+  // Profil bersumber dari server (prop). Saat login/logout, router.refresh()
+  // mengirim prop terbaru; tidak ada state lokal yang bisa basi.
   useEffect(() => {
     const supabase = buatKlienBrowser();
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") {
-        setProfile(null);
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
+        router.refresh();
       }
     });
     return () => sub.subscription.unsubscribe();
-  }, []);
+  }, [router]);
 
   const keluar = useCallback(async () => {
     await logoutSupabase();
-    setProfile(null);
     router.push("/login");
+    router.refresh();
   }, [router]);
 
   const value = useMemo<SesiContextValue>(
-    () => ({ profile, siap: true, keluar }),
-    [profile, keluar],
+    () => ({ profile: profileAwal, siap: true, keluar }),
+    [profileAwal, keluar],
   );
 
   return <SesiContext.Provider value={value}>{children}</SesiContext.Provider>;

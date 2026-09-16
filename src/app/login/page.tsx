@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
 import { loginSupabase } from "@/lib/otentikasi";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -23,8 +21,10 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    router.push("/dashboard");
-    router.refresh();
+    // Hard navigation: pastikan server render ulang dengan cookie sesi terbaru.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/dashboard";
+    return;
   }
 
   return (
