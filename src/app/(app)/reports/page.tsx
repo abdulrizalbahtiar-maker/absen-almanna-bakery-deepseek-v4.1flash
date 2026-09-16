@@ -1,9 +1,6 @@
 import { ReportsClient } from "./ReportsClient";
 import { getProfileSaya } from "@/lib/supabase/auth";
-import {
-  ambilRekapKeterlambatan,
-  ambilRekapLembur,
-} from "@/lib/supabase/queries";
+import { ambilRekapGabungan } from "@/lib/supabase/queries";
 import { getTanggalWITA } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
@@ -21,10 +18,7 @@ export default async function ReportsPage({
   const mulai = (sp.from as string) || `${hariIni.slice(0, 7)}-01`;
   const akhir = (sp.to as string) || hariIni;
 
-  const [late, ot] = await Promise.all([
-    ambilRekapKeterlambatan(mulai, akhir),
-    ambilRekapLembur(mulai, akhir),
-  ]);
+  const { keterlambatan: late, lembur: ot } = await ambilRekapGabungan(mulai, akhir);
 
   return <ReportsClient late={late} ot={ot} mulai={mulai} akhir={akhir} />;
 }

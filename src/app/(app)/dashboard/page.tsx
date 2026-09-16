@@ -2,8 +2,7 @@ import { Card } from "@/components/ui/Card";
 import { formatRupiah } from "@/lib/format";
 import { getProfileSaya } from "@/lib/supabase/auth";
 import {
-  ambilRekapKeterlambatan,
-  ambilRekapLembur,
+  ambilRekapGabungan,
   ambilStatistikHariIni,
 } from "@/lib/supabase/queries";
 import { getTanggalWITA } from "@/lib/time";
@@ -18,12 +17,9 @@ export default async function DashboardPage() {
   const mulaiBulan = `${hariIni.slice(0, 7)}-01`;
 
   if (profile.role === "karyawan") {
-    const [lateRows, otRows] = await Promise.all([
-      ambilRekapKeterlambatan(mulaiBulan, hariIni),
-      ambilRekapLembur(mulaiBulan, hariIni),
-    ]);
-    const late = lateRows.find((r) => r.profile_id === profile.id);
-    const ot = otRows.find((r) => r.profile_id === profile.id);
+    const { keterlambatan, lembur } = await ambilRekapGabungan(mulaiBulan, hariIni);
+    const late = keterlambatan.find((r) => r.profile_id === profile.id);
+    const ot = lembur.find((r) => r.profile_id === profile.id);
 
     const kartu = [
       { label: "Hadir", nilai: String(late?.total_hari_hadir ?? 0) },

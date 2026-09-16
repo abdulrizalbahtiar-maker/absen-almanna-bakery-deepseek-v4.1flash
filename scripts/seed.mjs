@@ -64,6 +64,7 @@ async function main() {
         email: a.email,
         password: passwordAkun,
         email_confirm: true,
+        app_metadata: { role: a.role },
       });
       if (error) {
         console.error(`[GAGAL create] ${a.email}:`, error.message);
@@ -72,9 +73,12 @@ async function main() {
       user = data.user;
       console.log(`[create] ${a.email}`);
     } else {
-      // Pastikan password sesuai (mis. admin).
-      await admin.auth.admin.updateUserById(user.id, { password: passwordAkun });
-      console.log(`[skip]   ${a.email} (sudah ada, password disinkronkan)`);
+      // Pastikan password + role metadata sesuai.
+      await admin.auth.admin.updateUserById(user.id, {
+        password: passwordAkun,
+        app_metadata: { role: a.role },
+      });
+      console.log(`[skip]   ${a.email} (sudah ada, password & role disinkronkan)`);
     }
 
     const { error: upErr } = await admin.from("profiles").upsert(

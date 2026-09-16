@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getProfileSaya } from "@/lib/supabase/auth";
-import { ambilRekapKeterlambatan, ambilRekapLembur } from "@/lib/supabase/queries";
+import { ambilRekapGabungan } from "@/lib/supabase/queries";
 import { buatBufferExcel } from "@/lib/excel";
 import { namaFileRekap } from "@/lib/time";
 
@@ -17,10 +17,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ pesan: "Filter periode wajib." }, { status: 400 });
   }
 
-  const [late, ot] = await Promise.all([
-    ambilRekapKeterlambatan(mulai, akhir),
-    ambilRekapLembur(mulai, akhir),
-  ]);
+  const { keterlambatan: late, lembur: ot } = await ambilRekapGabungan(mulai, akhir);
 
   const buffer = await buatBufferExcel(late, ot);
   const nama = namaFileRekap(mulai, akhir);

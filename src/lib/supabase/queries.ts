@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { buatKlienServer } from "./server";
 import { hitungJamTerlambat } from "../late";
 import { hitungDendaHarian, menitEfektifTelat } from "../denda";
@@ -9,18 +10,70 @@ import type {
   Settings,
 } from "@/types";
 
-export async function ambilSettings(): Promise<Settings | null> {
+/** Settings id=1. Di-cache per-request. */
+export const ambilSettings = cache(async (): Promise<Settings | null> => {
   const supabase = await buatKlienServer();
   const { data } = await supabase.from("settings").select("*").eq("id", 1).single();
   return (data as Settings) ?? null;
-}
+});
 
-export async function ambilProfiles(): Promise<Profile[]> {
+/** Semua profil. Di-cache per-request. */
+export const ambilProfiles = cache(async (): Promise<Profile[]> => {
   const supabase = await buatKlienServer();
   const { data } = await supabase.from("profiles").select("*").order("nama");
   return (data as Profile[]) ?? [];
-}
+});
 
+/** Attendance dalam rentang tanggal. Di-cache per-request per rentang. */
+export const ambilAttendanceRentang = cache(
+  async (mulai: string, akhir: string): Promise<Attendance[]> => {
+    const supabase = await buatKlienServer();
+    const { data } = await supabase
+      .from("attendance")
+      .select("*")
+      .gte("tanggal", mulai)
+      .lte("tanggal", akhir);
+    return (data as Attendance[]) ?? [];
+  },
+);
+
+/** Overtime Approved dalam rentang tanggal. Di-cache per-request per rentang. */
+export const ambilOvertimeApprovedRentang = cache(
+  async (mulai: string, akhir: string): Promise<OvertimeRequest[]> => {
+    const supabase = await buatKlienServer();
+    const { data } = await supabase
+      .from("overtime_requests")
+      .select("*")
+      .eq("status", "Approved")
+      .gte("tanggal", mulai)
+      .lte("tanggal", akhir);
+    return (data as OvertimeRequest[]) ?? [];
+  },
+);
+
+/** Attendance satu tanggal (untuk statistik harian admin). */
+export const ambilAttendanceTanggal = cache(
+  async (tanggal: string): Promise<Attendance[]> => {
+    const supabase = await buatKlienServer();
+    const { data } = await supabase
+      .from("attendance")
+      .select("*")
+      .eq("tanggal", tanggal);
+    return (data as Attendance[]) ?? [];
+  },
+);
+
+/** Jumlah lembur Pending. */
+export const ambilJumlahLemburPending = cache(async (): Promise<number> => {
+  const supabase = await buatKlienServer();
+  const { count } = await supabase
+    .from("overtime_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "Pending");
+  return count ?? 0;
+});
+
+/** Attendance milik satu profil (untuk halaman absen). */
 export async function ambilAttendance(profileId?: string): Promise<Attendance[]> {
   const supabase = await buatKlienServer();
   let q = supabase
@@ -56,18 +109,11 @@ export async function ambilAttendanceByTanggal(
   return (data as Attendance) ?? null;
 }
 
+/** Agregasi rekap keterlambatan + denda untuk periode. */
 export async function ambilRekapKeterlambatan(mulai: string, akhir: string) {
   const [profiles, attendanceRows, settings] = await Promise.all([
     ambilProfiles(),
-    (async () => {
-      const supabase = await buatKlienServer();
-      const { data } = await supabase
-        .from("attendance")
-        .select("*")
-        .gte("tanggal", mulai)
-        .lte("tanggal", akhir);
-      return (data as Attendance[]) ?? [];
-    })(),
+    ambilAttendanceRentang(mulai, akhir),
     ambilSettings(),
   ]);
 
@@ -105,19 +151,11 @@ export async function ambilRekapKeterlambatan(mulai: string, akhir: string) {
     });
 }
 
+/** Agregasi rekap lembur Approved untuk periode. */
 export async function ambilRekapLembur(mulai: string, akhir: string) {
   const [profiles, overtimeRows] = await Promise.all([
     ambilProfiles(),
-    (async () => {
-      const supabase = await buatKlienServer();
-      const { data } = await supabase
-        .from("overtime_requests")
-        .select("*")
-        .eq("status", "Approved")
-        .gte("tanggal", mulai)
-        .lte("tanggal", akhir);
-      return (data as OvertimeRequest[]) ?? [];
-    })(),
+    ambilOvertimeApprovedRentang(mulai, akhir),
   ]);
 
   return profiles
@@ -136,25 +174,21 @@ export async function ambilRekapLembur(mulai: string, akhir: string) {
     });
 }
 
+/** Rekap keterlambatan + lembur sekaligus (satu gelombang query). */
+export async function ambilRekapGabungan(mulai: string, akhir: string) {
+  const [keterlambatan, lembur] = await Promise.all([
+    ambilRekapKeterlambatan(mulai, akhir),
+    ambilRekapLembur(mulai, akhir),
+  ]);
+  return { keterlambatan, lembur };
+}
+
+/** Statistik hari ini untuk admin. */
 export async function ambilStatistikHariIni(tanggal: string) {
-  const [profiles, attendanceRows, overtimeRows] = await Promise.all([
+  const [profiles, attendanceRows, pendingLembur] = await Promise.all([
     ambilProfiles(),
-    (async () => {
-      const supabase = await buatKlienServer();
-      const { data } = await supabase
-        .from("attendance")
-        .select("*")
-        .eq("tanggal", tanggal);
-      return (data as Attendance[]) ?? [];
-    })(),
-    (async () => {
-      const supabase = await buatKlienServer();
-      const { data } = await supabase
-        .from("overtime_requests")
-        .select("id")
-        .eq("status", "Pending");
-      return data ?? [];
-    })(),
+    ambilAttendanceTanggal(tanggal),
+    ambilJumlahLemburPending(),
   ]);
 
   const totalAktif = profiles.filter(
@@ -166,6 +200,6 @@ export async function ambilStatistikHariIni(tanggal: string) {
     hadir: attendanceRows.length,
     telat: attendanceRows.filter((a) => a.menit_terlambat > 0).length,
     belumAbsen: totalAktif - attendanceRows.length,
-    pendingLembur: overtimeRows.length,
+    pendingLembur,
   };
 }

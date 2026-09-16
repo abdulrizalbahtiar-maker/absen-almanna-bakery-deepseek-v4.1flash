@@ -10,6 +10,8 @@ const ROUTE_TERPROTEKSI = [
   "/settings",
 ];
 
+const ROUTE_ADMIN = ["/settings", "/reports"];
+
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -34,10 +36,10 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  // Refresh sesi + validasi token.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Verifikasi JWT lokal (tanpa round-trip ke server Supabase).
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims as { sub?: string; app_metadata?: { role?: string } } | undefined;
+  const userId = claims?.sub ?? null;
 
   const { pathname } = request.nextUrl;
   const perluProteksi = ROUTE_TERPROTEKSI.some(
@@ -45,26 +47,27 @@ export async function proxy(request: NextRequest) {
   );
 
   if (!perluProteksi) {
-    if (pathname === "/login" && user) {
+    if (pathname === "/login" && userId) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
     return response;
   }
 
-  if (!user) {
+  if (!userId) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Cek role untuk route admin-only.
-  if (pathname.startsWith("/settings") || pathname.startsWith("/reports")) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-    if (profile?.role !== "admin") {
+  // Cek role admin-only dari claim JWT (tanpa query DB).
+  const adminSaja = ROUTE_ADMIN.some(
+    (r) => pathname === r || pathname.startsWith(`${r}/`),
+  );
+  if (adminSaja) {
+    const role = claims?.app_metadata?.role;
+    if (role && role !== "admin") {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
+    // Kalau claim role belum ada (user lama), biarkan lewat —
+    // guard di halaman + RLS tetap jadi otoritas final.
   }
 
   return response;
