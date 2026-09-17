@@ -80,6 +80,25 @@ Buka http://localhost:3000, login dengan email + password.
 
 > Geolocation hanya berfungsi di HTTPS atau `localhost`.
 
+## 6. Deploy ke Netlify
+
+1. Netlify → **Add new site** → **Import an existing project** → pilih GitHub →
+   repo `absen-almanna-bakery-deepseek-v4.1flash`.
+2. Build & publish otomatis terdeteksi dari `netlify.toml`
+   (build `npm run build`, plugin `@netlify/plugin-nextjs`).
+3. **Environment variables** (Site settings → Environment variables) — WAJIB:
+
+   ```
+   NEXT_PUBLIC_SUPABASE_URL
+   NEXT_PUBLIC_SUPABASE_ANON_KEY
+   SUPABASE_SERVICE_ROLE_KEY
+   ```
+
+   Nilainya sama dengan `.env.local` (tidak ikut ke GitHub, disetel di sini).
+4. Deploy. Setelah selesai, situs tersedia via HTTPS
+   (mis. `https://<nama>.netlify.app`). HTTPS inilah yang membuat GPS jalan di HP.
+5. Setelah tersambung, setiap `git push` ke branch `main` → auto-deploy.
+
 ## Perintah
 
 ```bash
