@@ -23,6 +23,9 @@ export async function GET(request: Request) {
   if (to) q = q.lte("tanggal", to);
 
   const { data, error } = await q;
-  if (error) return NextResponse.json({ pesan: error.message }, { status: 500 });
+  if (error) {
+    console.error("[attendance/history] gagal memuat:", error.message);
+    return NextResponse.json({ pesan: "Gagal memuat riwayat absensi." }, { status: 500 });
+  }
   return NextResponse.json({ data });
 }

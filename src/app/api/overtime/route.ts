@@ -3,18 +3,35 @@ import { buatKlienServer } from "@/lib/supabase/server";
 import { hitungTotalJam, validasiPengajuanLembur } from "@/lib/overtime";
 import { getTanggalWITA } from "@/lib/time";
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await buatKlienServer();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ pesan: "Tidak terautentikasi." }, { status: 401 });
 
-  const { data, error } = await supabase
+  const { searchParams } = new URL(request.url);
+  const limitParam = Number(searchParams.get("limit"));
+  const limit = Number.isFinite(limitParam)
+    ? Math.min(Math.max(Math.trunc(limitParam), 1), 200)
+    : 60;
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
+
+  let q = supabase
     .from("overtime_requests")
     .select("*")
-    .order("tanggal", { ascending: false });
-  if (error) return NextResponse.json({ pesan: error.message }, { status: 500 });
+    .order("tanggal", { ascending: false })
+    .limit(limit);
+  // RLS sudah membatasi karyawan ke datanya sendiri.
+  if (from) q = q.gte("tanggal", from);
+  if (to) q = q.lte("tanggal", to);
+
+  const { data, error } = await q;
+  if (error) {
+    console.error("[overtime GET] gagal memuat:", error.message);
+    return NextResponse.json({ pesan: "Gagal memuat data lembur." }, { status: 500 });
+  }
   return NextResponse.json({ data });
 }
 
@@ -52,6 +69,9 @@ export async function POST(request: Request) {
     status: "Pending",
   });
 
-  if (error) return NextResponse.json({ pesan: error.message }, { status: 500 });
+  if (error) {
+    console.error("[overtime POST] gagal insert:", error.message);
+    return NextResponse.json({ pesan: "Gagal mengirim pengajuan lembur." }, { status: 500 });
+  }
   return NextResponse.json({ pesan: "Pengajuan lembur dikirim." });
 }

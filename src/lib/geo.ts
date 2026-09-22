@@ -40,3 +40,49 @@ export function diDalamRadius(
 ): boolean {
   return jarakKeKantor(lat, lng, kantorLat, kantorLng) <= radiusMeter;
 }
+
+export interface HasilValidasiGeo {
+  valid: boolean;
+  pesan?: string;
+  lat?: number;
+  lng?: number;
+  akurasi?: number;
+}
+
+/** Batas akurasi wajar (meter). Di atas ini titik dianggap tidak dapat dipercaya. */
+export const AKURASI_MAKSIMUM_METER = 200;
+
+/**
+ * Validasi payload koordinat mentah dari body request.
+ * Menolak nilai non-angka, di luar rentang bumi, dan akurasi tak wajar.
+ */
+export function validasiGeo(body: unknown): HasilValidasiGeo {
+  if (typeof body !== "object" || body === null) {
+    return { valid: false, pesan: "Body request tidak valid." };
+  }
+  const b = body as Record<string, unknown>;
+  const lat = Number(b.lat);
+  const lng = Number(b.lng);
+  const akurasi = Number(b.akurasi);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(akurasi)) {
+    return { valid: false, pesan: "lat, lng, akurasi wajib berupa angka." };
+  }
+  if (lat < -90 || lat > 90) {
+    return { valid: false, pesan: "Latitude harus antara -90 dan 90." };
+  }
+  if (lng < -180 || lng > 180) {
+    return { valid: false, pesan: "Longitude harus antara -180 dan 180." };
+  }
+  if (akurasi < 0) {
+    return { valid: false, pesan: "Akurasi tidak boleh negatif." };
+  }
+  if (akurasi > AKURASI_MAKSIMUM_METER) {
+    return {
+      valid: false,
+      pesan: `Akurasi GPS terlalu rendah (${Math.round(akurasi)} m). Cari sinyal yang lebih baik.`,
+    };
+  }
+
+  return { valid: true, lat, lng, akurasi };
+}

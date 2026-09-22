@@ -110,9 +110,13 @@ export async function ambilAttendanceByTanggal(
 }
 
 /** Agregasi rekap keterlambatan + denda untuk periode. */
-export async function ambilRekapKeterlambatan(mulai: string, akhir: string) {
+export async function ambilRekapKeterlambatan(
+  mulai: string,
+  akhir: string,
+  profilesDimuat?: Profile[],
+) {
   const [profiles, attendanceRows, settings] = await Promise.all([
-    ambilProfiles(),
+    profilesDimuat ?? ambilProfiles(),
     ambilAttendanceRentang(mulai, akhir),
     ambilSettings(),
   ]);
@@ -152,9 +156,13 @@ export async function ambilRekapKeterlambatan(mulai: string, akhir: string) {
 }
 
 /** Agregasi rekap lembur Approved untuk periode. */
-export async function ambilRekapLembur(mulai: string, akhir: string) {
+export async function ambilRekapLembur(
+  mulai: string,
+  akhir: string,
+  profilesDimuat?: Profile[],
+) {
   const [profiles, overtimeRows] = await Promise.all([
-    ambilProfiles(),
+    profilesDimuat ?? ambilProfiles(),
     ambilOvertimeApprovedRentang(mulai, akhir),
   ]);
 
@@ -174,13 +182,69 @@ export async function ambilRekapLembur(mulai: string, akhir: string) {
     });
 }
 
-/** Rekap keterlambatan + lembur sekaligus (satu gelombang query). */
+/** Rekap keterlambatan + lembur sekaligus (profiles dimuat sekali). */
 export async function ambilRekapGabungan(mulai: string, akhir: string) {
+  const profiles = await ambilProfiles();
   const [keterlambatan, lembur] = await Promise.all([
-    ambilRekapKeterlambatan(mulai, akhir),
-    ambilRekapLembur(mulai, akhir),
+    ambilRekapKeterlambatan(mulai, akhir, profiles),
+    ambilRekapLembur(mulai, akhir, profiles),
   ]);
   return { keterlambatan, lembur };
+}
+
+/**
+ * Rekap periode untuk SATU karyawan (dipakai dashboard karyawan).
+ * Menghindari membangun rekap seluruh karyawan hanya untuk satu orang.
+ */
+export async function ambilRekapSaya(
+  profileId: string,
+  mulai: string,
+  akhir: string,
+) {
+  const [attendanceRows, overtimeRows, settings, profile] = await Promise.all([
+    ambilAttendanceRentang(mulai, akhir),
+    ambilOvertimeApprovedRentang(mulai, akhir),
+    ambilSettings(),
+    ambilProfiles(),
+  ]);
+
+  const toleransi = settings?.toleransi_telat_menit ?? 15;
+  const saya = profile.find((p) => p.id === profileId) ?? null;
+  const tarifDenda = saya?.tarif_denda_per_jam ?? 0;
+
+  const barisAbsen = attendanceRows.filter((a) => a.profile_id === profileId);
+  const barisLembur = overtimeRows.filter((o) => o.profile_id === profileId);
+
+  const total_menit_telat = barisAbsen.reduce(
+    (n, r) => n + r.menit_terlambat,
+    0,
+  );
+  const total_menit_efektif = barisAbsen.reduce(
+    (n, r) => n + menitEfektifTelat(r.menit_terlambat, toleransi),
+    0,
+  );
+  const total_denda = Math.round(
+    barisAbsen.reduce(
+      (n, r) => n + hitungDendaHarian(r.menit_terlambat, toleransi, tarifDenda),
+      0,
+    ),
+  );
+
+  return {
+    late: {
+      total_hari_hadir: barisAbsen.length,
+      total_hari_telat: barisAbsen.filter((r) => r.menit_terlambat > 0).length,
+      total_menit_telat,
+      total_menit_efektif,
+      total_denda,
+    },
+    ot: {
+      total_jam: Math.round(
+        barisLembur.reduce((n, r) => n + r.total_jam, 0) * 100,
+      ) / 100,
+      total_nominal: barisLembur.reduce((n, r) => n + r.nominal, 0),
+    },
+  };
 }
 
 /** Statistik hari ini untuk admin. */

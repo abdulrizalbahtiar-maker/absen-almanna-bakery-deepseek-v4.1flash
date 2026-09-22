@@ -21,21 +21,122 @@ async function wajibAdmin() {
 
 // ---------- Settings ----------
 
+const POLA_JAM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function angkaDalam(nilai: unknown, min: number, maks: number): number | null {
+  const n = Number(nilai);
+  if (!Number.isFinite(n) || n < min || n > maks) return null;
+  return n;
+}
+
+/** Ambil hanya field settings yang diizinkan, lalu validasi rentangnya. */
+function bersihkanSettings(patch: Record<string, unknown>) {
+  const hasil: Record<string, unknown> = {};
+
+  if (patch.nama_lokasi !== undefined) {
+    const nama = String(patch.nama_lokasi).trim();
+    if (!nama) throw new Error("Nama lokasi wajib diisi.");
+    hasil.nama_lokasi = nama.slice(0, 100);
+  }
+
+  if (patch.latitude !== undefined) {
+    const lat = angkaDalam(patch.latitude, -90, 90);
+    if (lat === null) throw new Error("Latitude harus antara -90 dan 90.");
+    hasil.latitude = lat;
+  }
+  if (patch.longitude !== undefined) {
+    const lng = angkaDalam(patch.longitude, -180, 180);
+    if (lng === null) throw new Error("Longitude harus antara -180 dan 180.");
+    hasil.longitude = lng;
+  }
+  if (patch.radius_meter !== undefined) {
+    const r = angkaDalam(patch.radius_meter, 5, 5000);
+    if (r === null) throw new Error("Radius harus antara 5 dan 5000 meter.");
+    hasil.radius_meter = Math.round(r);
+  }
+  if (patch.tarif_default !== undefined) {
+    const t = angkaDalam(patch.tarif_default, 0, 100_000_000);
+    if (t === null) throw new Error("Tarif default tidak valid.");
+    hasil.tarif_default = Math.round(t);
+  }
+  if (patch.toleransi_telat_menit !== undefined) {
+    const t = angkaDalam(patch.toleransi_telat_menit, 0, 240);
+    if (t === null) throw new Error("Toleransi telat harus antara 0 dan 240 menit.");
+    hasil.toleransi_telat_menit = Math.round(t);
+  }
+  if (patch.jam_masuk_default !== undefined) {
+    if (!POLA_JAM.test(String(patch.jam_masuk_default)))
+      throw new Error("Jam masuk default tidak valid.");
+    hasil.jam_masuk_default = String(patch.jam_masuk_default);
+  }
+  if (patch.jam_pulang_default !== undefined) {
+    if (!POLA_JAM.test(String(patch.jam_pulang_default)))
+      throw new Error("Jam pulang default tidak valid.");
+    hasil.jam_pulang_default = String(patch.jam_pulang_default);
+  }
+  if (patch.tolak_diluar_radius !== undefined) {
+    hasil.tolak_diluar_radius = Boolean(patch.tolak_diluar_radius);
+  }
+
+  if (Object.keys(hasil).length === 0) throw new Error("Tidak ada perubahan.");
+  return hasil;
+}
+
 export async function simpanSettingsServer(patch: Record<string, unknown>) {
   const { user, supabase } = await wajibAdmin();
-  const { error } = await supabase.from("settings").update(patch).eq("id", 1);
-  if (error) throw new Error(error.message);
-  await catatLog(user.id, "ubah_settings", JSON.stringify(patch));
+  const bersih = bersihkanSettings(patch);
+  const { error } = await supabase.from("settings").update(bersih).eq("id", 1);
+  if (error) {
+    console.error("[simpanSettingsServer] gagal:", error.message);
+    throw new Error("Gagal menyimpan pengaturan.");
+  }
+  await catatLog(user.id, "ubah_settings", JSON.stringify(bersih));
   revalidatePath("/settings");
 }
 
 // ---------- Profiles ----------
 
+const JENIS_PROFIL: Record<string, "string" | "number"> = {
+  nama: "string",
+  jabatan: "string",
+  jam_masuk_standar: "string",
+  jam_pulang_standar: "string",
+  tarif_lembur_per_jam: "number",
+  tarif_denda_per_jam: "number",
+};
+
+/** Ambil hanya field profil yang diizinkan, lalu validasi formatnya. */
+function bersihkanProfil(patch: Record<string, unknown>) {
+  const hasil: Record<string, unknown> = {};
+  for (const [kunci, tipe] of Object.entries(JENIS_PROFIL)) {
+    if (patch[kunci] === undefined) continue;
+    const nilai = patch[kunci];
+    if (tipe === "number") {
+      const n = angkaDalam(nilai, 0, 100_000_000);
+      if (n === null) throw new Error(`${kunci} tidak valid.`);
+      hasil[kunci] = Math.round(n);
+    } else if (kunci === "jam_masuk_standar" || kunci === "jam_pulang_standar") {
+      if (!POLA_JAM.test(String(nilai))) throw new Error(`${kunci} tidak valid.`);
+      hasil[kunci] = String(nilai);
+    } else {
+      const teks = String(nilai).trim();
+      if (!teks) throw new Error(`${kunci} wajib diisi.`);
+      hasil[kunci] = teks.slice(0, 100);
+    }
+  }
+  if (Object.keys(hasil).length === 0) throw new Error("Tidak ada perubahan.");
+  return hasil;
+}
+
 export async function ubahProfilServer(id: string, patch: Record<string, unknown>) {
   await wajibAdmin();
   const supabase = await buatKlienServer();
-  const { error } = await supabase.from("profiles").update(patch).eq("id", id);
-  if (error) throw new Error(error.message);
+  const bersih = bersihkanProfil(patch);
+  const { error } = await supabase.from("profiles").update(bersih).eq("id", id);
+  if (error) {
+    console.error("[ubahProfilServer] gagal:", error.message);
+    throw new Error("Gagal menyimpan perubahan karyawan.");
+  }
   revalidatePath("/settings");
 }
 
@@ -114,13 +215,38 @@ export async function resetTransaksiServer(target: "attendance" | "overtime" | "
   const { user } = await wajibAdmin();
   const admin = buatKlienAdmin();
 
+  const jumlah: Record<string, number> = {};
+
   if (target === "attendance" || target === "all") {
-    await admin.from("attendance").delete().not("id", "is", null);
+    const { count } = await admin
+      .from("attendance")
+      .select("id", { count: "exact", head: true });
+    const { error } = await admin.from("attendance").delete().not("id", "is", null);
+    if (error) {
+      console.error("[resetTransaksi] gagal hapus attendance:", error.message);
+      throw new Error("Gagal reset data absensi.");
+    }
+    jumlah.attendance = count ?? 0;
   }
+
   if (target === "overtime" || target === "all") {
-    await admin.from("overtime_requests").delete().not("id", "is", null);
+    const { count } = await admin
+      .from("overtime_requests")
+      .select("id", { count: "exact", head: true });
+    const { error } = await admin.from("overtime_requests").delete().not("id", "is", null);
+    if (error) {
+      console.error("[resetTransaksi] gagal hapus overtime:", error.message);
+      throw new Error("Gagal reset data lembur.");
+    }
+    jumlah.overtime = count ?? 0;
   }
-  await catatLog(user.id, "reset_transaksi", target);
+
+  await catatLog(
+    user.id,
+    "reset_transaksi",
+    JSON.stringify({ target, dihapus: jumlah }),
+  );
   revalidatePath("/settings");
   revalidatePath("/dashboard");
+  revalidatePath("/reports");
 }

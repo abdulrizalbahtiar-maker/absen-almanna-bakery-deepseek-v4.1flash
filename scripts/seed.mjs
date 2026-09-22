@@ -25,11 +25,12 @@ const admin = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-const PASSWORD_DEFAULT = "password123";
-const PASSWORD_ADMIN = "almannabakery2026";
+const PASSWORD_DEFAULT = process.env.SEED_PASSWORD_KARYAWAN ?? "password123";
+const PASSWORD_ADMIN = process.env.SEED_PASSWORD_ADMIN ?? "almannabakery2026";
+const EMAIL_ADMIN = process.env.SEED_EMAIL_ADMIN ?? "almannabakery2@gmail.com";
 
 const AKUN = [
-  { email: "almannabakery2@gmail.com", nama: "Admin Bakery", jabatan: "Owner", role: "admin", masuk: "08:00", pulang: "17:00", lembur: 0, denda: 0, password: PASSWORD_ADMIN },
+  { email: EMAIL_ADMIN, nama: "Admin Bakery", jabatan: "Owner", role: "admin", masuk: "08:00", pulang: "17:00", lembur: 0, denda: 0, password: PASSWORD_ADMIN },
   { email: "kar01@almanna.test", nama: "Karyawan 01", jabatan: "Kasir", role: "karyawan", masuk: "08:00", pulang: "17:00", lembur: 20000, denda: 15000 },
   { email: "kar02@almanna.test", nama: "Karyawan 02", jabatan: "Baker", role: "karyawan", masuk: "07:00", pulang: "16:00", lembur: 25000, denda: 20000 },
   { email: "kar03@almanna.test", nama: "Karyawan 03", jabatan: "Baker", role: "karyawan", masuk: "07:00", pulang: "16:00", lembur: 25000, denda: 20000 },
@@ -102,7 +103,7 @@ async function main() {
       console.log(`[profile] ${a.email} -> ${a.role}`);
     }
   }
-  console.log("\nSelesai. Password default: " + PASSWORD_DEFAULT);
+  console.log("\nSelesai. Password seed dapat diatur via SEED_PASSWORD_KARYAWAN / SEED_PASSWORD_ADMIN.");
 }
 
 main().catch((e) => {

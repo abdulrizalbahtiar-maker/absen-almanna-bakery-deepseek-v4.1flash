@@ -56,3 +56,43 @@ export function namaFileRekap(mulai: string, akhir: string): string {
   const pad = (s: string) => s.replaceAll("-", "");
   return `rekap-${pad(mulai)}-sampai-${pad(akhir)}.xlsx`;
 }
+
+const POLA_TANGGAL = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Cek format YYYY-MM-DD dan validitas kalender. */
+export function tanggalValid(teks: string): boolean {
+  if (!POLA_TANGGAL.test(teks)) return false;
+  const d = new Date(`${teks}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === teks;
+}
+
+export interface HasilValidasiPeriode {
+  valid: boolean;
+  pesan?: string;
+  mulai?: string;
+  akhir?: string;
+}
+
+/** Rentang maksimum laporan (hari). */
+export const MAKS_RENTANG_LAPORAN_HARI = 366;
+
+/** Validasi filter periode laporan: format, urutan, dan batas rentang. */
+export function validasiPeriode(
+  mulai: string,
+  akhir: string,
+): HasilValidasiPeriode {
+  if (!tanggalValid(mulai) || !tanggalValid(akhir)) {
+    return { valid: false, pesan: "Format tanggal harus YYYY-MM-DD." };
+  }
+  const total = selisihHari(mulai, akhir);
+  if (total < 0) {
+    return { valid: false, pesan: "Tanggal 'dari' harus sebelum 'sampai'." };
+  }
+  if (total > MAKS_RENTANG_LAPORAN_HARI) {
+    return {
+      valid: false,
+      pesan: `Rentang maksimal ${MAKS_RENTANG_LAPORAN_HARI} hari.`,
+    };
+  }
+  return { valid: true, mulai, akhir };
+}

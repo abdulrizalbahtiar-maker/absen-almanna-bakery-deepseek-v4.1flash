@@ -1,27 +1,18 @@
-"use client";
-
 import type { ReactNode } from "react";
-import { useSesi } from "@/components/SesiProvider";
-import { BottomNav, TopBar } from "@/components/nav/Nav";
+import { SesiProvider } from "@/components/SesiProvider";
+import { AppShell } from "@/components/nav/AppShell";
+import { getProfileSaya } from "@/lib/supabase/auth";
 
-export default function AppLayout({ children }: { children: ReactNode }) {
-  const { profile } = useSesi();
+export const dynamic = "force-dynamic";
 
-  if (!profile) {
-    return (
-      <main className="flex flex-1 items-center justify-center p-4">
-        <a href="/login" className="text-sm font-semibold text-primary">
-          Sesi tidak ditemukan. Masuk
-        </a>
-      </main>
-    );
-  }
+export default async function AppLayout({ children }: { children: ReactNode }) {
+  // Profil diambil di server hanya untuk route terproteksi,
+  // sehingga route publik (/login) tidak ikut melakukan query.
+  const profile = await getProfileSaya();
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <TopBar />
-      <main className="mx-auto w-full max-w-5xl flex-1 p-4">{children}</main>
-      <BottomNav />
-    </div>
+    <SesiProvider profileAwal={profile}>
+      <AppShell>{children}</AppShell>
+    </SesiProvider>
   );
 }

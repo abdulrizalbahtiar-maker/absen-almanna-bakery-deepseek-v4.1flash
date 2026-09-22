@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buatKlienServer } from "@/lib/supabase/server";
 import { ambilSettings } from "@/lib/supabase/queries";
-import { jarakKeKantor } from "@/lib/geo";
+import { jarakKeKantor, validasiGeo } from "@/lib/geo";
 import { hitungMenitTerlambat } from "@/lib/late";
 import { getJamLengkapWITA, getTanggalWITA } from "@/lib/time";
 
@@ -13,24 +13,22 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ pesan: "Tidak terautentikasi." }, { status: 401 });
 
   const body = await request.json().catch(() => null);
-  const lat = Number(body?.lat);
-  const lng = Number(body?.lng);
-  const akurasi = Number(body?.akurasi);
-
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(akurasi)) {
-    return NextResponse.json({ pesan: "lat, lng, akurasi wajib." }, { status: 400 });
+  const geo = validasiGeo(body);
+  if (!geo.valid) {
+    return NextResponse.json({ pesan: geo.pesan }, { status: 400 });
   }
+  const { lat, lng, akurasi } = geo as { lat: number; lng: number; akurasi: number };
 
   const settings = await ambilSettings();
   if (!settings) {
     return NextResponse.json({ pesan: "Settings belum diatur." }, { status: 500 });
   }
 
-  const jarak = Math.round(
-    jarakKeKantor(lat, lng, settings.latitude, settings.longitude),
-  );
+  // Bandingkan jarak asli dengan radius, bulatkan hanya untuk ditampilkan.
+  const jarakAsli = jarakKeKantor(lat, lng, settings.latitude, settings.longitude);
+  const jarak = Math.round(jarakAsli);
 
-  const didalam = jarak <= settings.radius_meter;
+  const didalam = jarakAsli <= settings.radius_meter;
   if (!didalam && settings.tolak_diluar_radius) {
     return NextResponse.json(
       {
@@ -43,16 +41,6 @@ export async function POST(request: Request) {
   const statusRadius = didalam ? "Valid" : "DiLuarRadius";
 
   const tanggal = getTanggalWITA();
-  const { data: existing } = await supabase
-    .from("attendance")
-    .select("id")
-    .eq("profile_id", user.id)
-    .eq("tanggal", tanggal)
-    .maybeSingle();
-
-  if (existing) {
-    return NextResponse.json({ pesan: "Sudah check-in hari ini." }, { status: 409 });
-  }
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -66,6 +54,8 @@ export async function POST(request: Request) {
     profile?.jam_masuk_standar ?? "08:00",
   );
 
+  // Insert langsung dan andalkan unique constraint (profile_id, tanggal)
+  // sehingga request ganda tidak bisa menghasilkan dua baris absensi.
   const { error } = await supabase.from("attendance").insert({
     profile_id: user.id,
     tanggal,
@@ -78,7 +68,15 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    return NextResponse.json({ pesan: error.message }, { status: 500 });
+    // 23505 = unique_violation: sudah check-in hari ini (aman dari race).
+    if (error.code === "23505") {
+      return NextResponse.json({ pesan: "Sudah check-in hari ini." }, { status: 409 });
+    }
+    console.error("[check-in] gagal insert attendance:", error.message);
+    return NextResponse.json(
+      { pesan: "Gagal menyimpan absensi. Coba lagi." },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({

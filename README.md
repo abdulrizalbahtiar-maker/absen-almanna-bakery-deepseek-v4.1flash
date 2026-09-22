@@ -60,14 +60,22 @@ Lalu jalankan patch perbaikan advisor: buka
 
 ## 4. Seed akun awal (9 akun)
 
+Sebelum menjalankan, set password seed lewat environment (jangan pakai nilai
+bawaan untuk deployment):
+
+```bash
+export SEED_PASSWORD_ADMIN='<password-admin-kuat>'
+export SEED_PASSWORD_KARYAWAN='<password-karyawan-awal>'
+export SEED_EMAIL_ADMIN='<email-admin>'
+```
+
 ```bash
 node --env-file=.env.local scripts/seed.mjs
 ```
 
-Membuat 1 admin + 8 karyawan. Password default karyawan: `password123`.
-Akun admin: `almannabakery2@gmail.com` / `almannabakery2026`.
-
-Aman dijalankan berulang (akun yang sudah ada dilewati).
+Membuat 1 admin + 8 karyawan. Kredensial diambil dari environment variable di
+atas. Aman dijalankan berulang (akun yang sudah ada dilewati dan password
+disinkronkan). Segera ganti password default sebelum dipakai di produksi.
 
 ## 5. Jalankan aplikasi
 

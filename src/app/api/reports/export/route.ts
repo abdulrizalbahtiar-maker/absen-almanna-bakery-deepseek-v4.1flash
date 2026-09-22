@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getProfileSaya } from "@/lib/supabase/auth";
 import { ambilRekapGabungan } from "@/lib/supabase/queries";
 import { buatBufferExcel } from "@/lib/excel";
-import { namaFileRekap } from "@/lib/time";
+import { namaFileRekap, validasiPeriode } from "@/lib/time";
 
 export async function GET(request: Request) {
   const profile = await getProfileSaya();
@@ -15,6 +15,11 @@ export async function GET(request: Request) {
   const akhir = searchParams.get("to") ?? "";
   if (!mulai || !akhir) {
     return NextResponse.json({ pesan: "Filter periode wajib." }, { status: 400 });
+  }
+
+  const periode = validasiPeriode(mulai, akhir);
+  if (!periode.valid) {
+    return NextResponse.json({ pesan: periode.pesan }, { status: 400 });
   }
 
   const { keterlambatan: late, lembur: ot } = await ambilRekapGabungan(mulai, akhir);

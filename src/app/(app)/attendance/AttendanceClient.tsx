@@ -9,12 +9,17 @@ import { Card, CardTitle } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Spinner";
 import { Toast } from "@/components/ui/Toast";
 import { jarakKeKantor } from "@/lib/geo";
-import { getTanggalWITA } from "@/lib/time";
 import type { Attendance, GeoPoint, Settings } from "@/types";
 
 type TipeToast = "sukses" | "error" | "info";
 
-export function AttendanceClient({ settings }: { settings: Settings }) {
+export function AttendanceClient({
+  settings,
+  hari,
+}: {
+  settings: Settings;
+  hari: string;
+}) {
   const { profile } = useSesi();
   const [geo, setGeo] = useState<GeoPoint | null>(null);
   const [loading, setLoading] = useState(false);
@@ -23,8 +28,6 @@ export function AttendanceClient({ settings }: { settings: Settings }) {
   const [absenHariIni, setAbsenHariIni] = useState<Attendance | null>(null);
   const [riwayat, setRiwayat] = useState<Attendance[]>([]);
   const [versi, setVersi] = useState(0);
-
-  const hari = getTanggalWITA();
 
   useEffect(() => {
     if (!profile) return;
@@ -103,7 +106,7 @@ export function AttendanceClient({ settings }: { settings: Settings }) {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-base font-extrabold text-ink">Absen</h1>
+        <h1 className="text-xl font-extrabold text-ink">Absen</h1>
         <p className="text-xs text-ink-soft">
           {hari} · WITA · shift {profile.jam_masuk_standar}-{profile.jam_pulang_standar}
         </p>

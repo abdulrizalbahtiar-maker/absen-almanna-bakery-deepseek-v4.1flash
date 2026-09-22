@@ -4,6 +4,8 @@ import {
   getJamWITA,
   rentangTanggal,
   namaFileRekap,
+  tanggalValid,
+  validasiPeriode,
 } from "@/lib/time";
 
 describe("time WITA (bab 8.1, acceptance A13)", () => {
@@ -32,5 +34,43 @@ describe("time WITA (bab 8.1, acceptance A13)", () => {
     expect(namaFileRekap("2026-09-01", "2026-09-30")).toBe(
       "rekap-20260901-sampai-20260930.xlsx",
     );
+  });
+});
+
+describe("tanggalValid", () => {
+  it("menerima tanggal YYYY-MM-DD yang valid", () => {
+    expect(tanggalValid("2026-09-15")).toBe(true);
+  });
+
+  it("menolak format salah", () => {
+    expect(tanggalValid("15-09-2026")).toBe(false);
+    expect(tanggalValid("2026/09/15")).toBe(false);
+    expect(tanggalValid("")).toBe(false);
+  });
+
+  it("menolak tanggal kalender tidak valid", () => {
+    expect(tanggalValid("2026-13-01")).toBe(false);
+    expect(tanggalValid("2026-02-30")).toBe(false);
+  });
+});
+
+describe("validasiPeriode", () => {
+  it("menerima rentang wajar", () => {
+    const hasil = validasiPeriode("2026-09-01", "2026-09-30");
+    expect(hasil.valid).toBe(true);
+    expect(hasil.mulai).toBe("2026-09-01");
+    expect(hasil.akhir).toBe("2026-09-30");
+  });
+
+  it("menolak format tanggal salah", () => {
+    expect(validasiPeriode("2026/09/01", "2026-09-30").valid).toBe(false);
+  });
+
+  it("menolak rentang terbalik", () => {
+    expect(validasiPeriode("2026-09-30", "2026-09-01").valid).toBe(false);
+  });
+
+  it("menolak rentang melebihi batas", () => {
+    expect(validasiPeriode("2020-01-01", "2026-01-01").valid).toBe(false);
   });
 });

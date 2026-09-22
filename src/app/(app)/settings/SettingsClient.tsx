@@ -31,8 +31,10 @@ export function SettingsClient({
   const { profile } = useSesi();
   const [state, setState] = useState<Settings>({ ...settingsAwal });
   const [daftar, setDaftar] = useState<Profile[]>(daftarAwal);
+  const [kotor, setKotor] = useState<Record<string, true>>({});
   const [toast, setToast] = useState<{ pesan: string; tipe: TipeToast } | null>(null);
   const [pending, startTransition] = useTransition();
+  const [barisSibuk, setBarisSibuk] = useState<string | null>(null);
   const [formBaru, setFormBaru] = useState({
     nama: "",
     email: "",
@@ -77,9 +79,36 @@ export function SettingsClient({
     });
   }
 
-  function ubahKaryawan(id: string, patch: Partial<Profile>) {
+  function ubahLokal(id: string, patch: Partial<Profile>) {
     setDaftar((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-    jalankan(() => ubahProfilServer(id, patch as Record<string, unknown>), "Perubahan disimpan.");
+    setKotor((prev) => ({ ...prev, [id]: true }));
+  }
+
+  function simpanBaris(k: Profile) {
+    if (!kotor[k.id]) return;
+    setBarisSibuk(k.id);
+    startTransition(async () => {
+      try {
+        await ubahProfilServer(k.id, {
+          nama: k.nama,
+          jabatan: k.jabatan,
+          jam_masuk_standar: k.jam_masuk_standar,
+          jam_pulang_standar: k.jam_pulang_standar,
+          tarif_lembur_per_jam: k.tarif_lembur_per_jam,
+          tarif_denda_per_jam: k.tarif_denda_per_jam,
+        });
+        setKotor((prev) => {
+          const next = { ...prev };
+          delete next[k.id];
+          return next;
+        });
+        setToast({ pesan: `Perubahan ${k.nama} disimpan.`, tipe: "sukses" });
+      } catch (e) {
+        setToast({ pesan: e instanceof Error ? e.message : "Gagal.", tipe: "error" });
+      } finally {
+        setBarisSibuk(null);
+      }
+    });
   }
 
   function hapus(k: Profile) {
@@ -109,9 +138,12 @@ export function SettingsClient({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-base font-extrabold text-ink">
-        Pengaturan {pending && <span className="text-xs text-ink-soft">(menyimpan…)</span>}
-      </h1>
+      <div>
+        <h1 className="text-xl font-extrabold text-ink">
+          Pengaturan {pending && <span className="text-xs text-ink-soft">(menyimpan…)</span>}
+        </h1>
+        <p className="text-xs text-ink-soft">Kelola lokasi, tarif, dan akun karyawan.</p>
+      </div>
 
       <OfficeMap
         kantorLat={state.latitude}
@@ -237,77 +269,85 @@ export function SettingsClient({
           Tambah karyawan
         </Button>
 
-        <div className="mt-4 -mx-4 overflow-x-auto px-4">
-          <table className="w-full min-w-[960px] text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-ink-soft">
-                {["Nama", "Email", "Jam masuk", "Jam pulang", "Jam kerja", "Upah lembur/jam", "Denda/jam", "Aksi"].map(
-                  (h) => (
-                    <th key={h} className="py-2 pr-3 font-semibold">
-                      {h}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {daftar.map((k) => (
-                <tr key={k.id}>
-                  <td className="py-2 pr-3">
-                    <p className="font-semibold text-ink">{k.nama}</p>
-                    <p className="text-xs text-ink-soft">{k.jabatan}</p>
-                  </td>
-                  <td className="py-2 pr-3">
-                    <Input
-                      type="email"
-                      defaultValue={k.email}
-                      onBlur={(e) => ubahKaryawan(k.id, { email: e.target.value })}
-                    />
-                  </td>
-                  <td className="py-2 pr-3">
-                    <Input
-                      type="time"
-                      value={k.jam_masuk_standar}
-                      onChange={(e) => ubahKaryawan(k.id, { jam_masuk_standar: e.target.value })}
-                    />
-                  </td>
-                  <td className="py-2 pr-3">
-                    <Input
-                      type="time"
-                      value={k.jam_pulang_standar}
-                      onChange={(e) => ubahKaryawan(k.id, { jam_pulang_standar: e.target.value })}
-                    />
-                  </td>
-                  <td className="py-2 pr-3 text-xs text-ink-soft">
-                    {durasiKerja(k.jam_masuk_standar, k.jam_pulang_standar)} jam
-                  </td>
-                  <td className="py-2 pr-3">
-                    <Input
-                      type="number"
-                      defaultValue={k.tarif_lembur_per_jam}
-                      onBlur={(e) =>
-                        ubahKaryawan(k.id, { tarif_lembur_per_jam: Number(e.target.value) })
-                      }
-                    />
-                  </td>
-                  <td className="py-2 pr-3">
-                    <Input
-                      type="number"
-                      defaultValue={k.tarif_denda_per_jam}
-                      onBlur={(e) =>
-                        ubahKaryawan(k.id, { tarif_denda_per_jam: Number(e.target.value) })
-                      }
-                    />
-                  </td>
-                  <td className="py-2">
-                    <Button varian="danger" onClick={() => hapus(k)} disabled={pending}>
-                      Hapus
+        <div className="mt-4 space-y-3">
+          {daftar.map((k) => (
+            <div key={k.id} className="rounded-xl border border-border p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink">{k.nama}</p>
+                  <p className="truncate text-xs text-ink-soft">
+                    {k.jabatan} · {k.email}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {kotor[k.id] && (
+                    <Button
+                      onClick={() => simpanBaris(k)}
+                      disabled={pending || barisSibuk === k.id}
+                    >
+                      {barisSibuk === k.id ? "Menyimpan…" : "Simpan"}
                     </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  )}
+                  <Button varian="danger" onClick={() => hapus(k)} disabled={pending}>
+                    Hapus
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Field label="Nama">
+                  <Input
+                    value={k.nama}
+                    onChange={(e) => ubahLokal(k.id, { nama: e.target.value })}
+                  />
+                </Field>
+                <Field label="Jabatan">
+                  <Input
+                    value={k.jabatan}
+                    onChange={(e) => ubahLokal(k.id, { jabatan: e.target.value })}
+                  />
+                </Field>
+                <Field label="Jam masuk">
+                  <Input
+                    type="time"
+                    value={k.jam_masuk_standar}
+                    onChange={(e) => ubahLokal(k.id, { jam_masuk_standar: e.target.value })}
+                  />
+                </Field>
+                <Field label="Jam pulang">
+                  <Input
+                    type="time"
+                    value={k.jam_pulang_standar}
+                    onChange={(e) => ubahLokal(k.id, { jam_pulang_standar: e.target.value })}
+                  />
+                </Field>
+                <Field label="Upah lembur/jam">
+                  <Input
+                    type="number"
+                    value={k.tarif_lembur_per_jam}
+                    onChange={(e) =>
+                      ubahLokal(k.id, { tarif_lembur_per_jam: Number(e.target.value) })
+                    }
+                  />
+                </Field>
+                <Field label="Denda/jam">
+                  <Input
+                    type="number"
+                    value={k.tarif_denda_per_jam}
+                    onChange={(e) =>
+                      ubahLokal(k.id, { tarif_denda_per_jam: Number(e.target.value) })
+                    }
+                  />
+                </Field>
+                <div className="flex items-end">
+                  <p className="text-xs text-ink-soft">
+                    Jam kerja {durasiKerja(k.jam_masuk_standar, k.jam_pulang_standar)} jam
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+          {daftar.length === 0 && <p className="text-sm text-ink-soft">Belum ada karyawan.</p>}
         </div>
         <p className="mt-2 text-xs text-ink-soft">
           Catatan: password login karyawan diatur saat pembuatan akun (di atas) dan dikelola lewat

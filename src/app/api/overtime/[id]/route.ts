@@ -63,7 +63,10 @@ export async function PUT(
     })
     .eq("id", id);
 
-  if (error) return NextResponse.json({ pesan: error.message }, { status: 500 });
+  if (error) {
+    console.error("[overtime PUT] gagal update:", error.message);
+    return NextResponse.json({ pesan: "Gagal memperbarui pengajuan." }, { status: 500 });
+  }
   return NextResponse.json({ pesan: "Pengajuan diperbarui." });
 }
 
@@ -88,7 +91,10 @@ export async function DELETE(
   }
 
   const { error } = await supabase.from("overtime_requests").delete().eq("id", id);
-  if (error) return NextResponse.json({ pesan: error.message }, { status: 500 });
+  if (error) {
+    console.error("[overtime DELETE] gagal hapus:", error.message);
+    return NextResponse.json({ pesan: "Gagal menghapus pengajuan." }, { status: 500 });
+  }
   return NextResponse.json({ pesan: "Pengajuan dihapus." });
 }
 
@@ -149,7 +155,10 @@ export async function PATCH(
     })
     .eq("id", id);
 
-  if (error) return NextResponse.json({ pesan: error.message }, { status: 500 });
+  if (error) {
+    console.error("[overtime PATCH] gagal putuskan:", error.message);
+    return NextResponse.json({ pesan: "Gagal memproses keputusan." }, { status: 500 });
+  }
 
   await catatLog(user.id, action === "Approve" ? "approve_lembur" : "reject_lembur", id);
 

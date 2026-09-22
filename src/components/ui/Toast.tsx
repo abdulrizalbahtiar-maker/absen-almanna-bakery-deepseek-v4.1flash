@@ -29,7 +29,7 @@ export function Toast({
 
   return (
     <div
-      className={`fixed inset-x-4 bottom-4 z-50 rounded-xl border px-4 py-3 text-sm font-semibold shadow-lg sm:left-auto sm:right-4 sm:w-80 ${tone[tipe]}`}
+      className={`fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-50 rounded-xl border px-4 py-3 text-sm font-semibold shadow-lg sm:bottom-4 sm:left-auto sm:right-4 sm:w-80 ${tone[tipe]}`}
       role="status"
     >
       {pesan}
