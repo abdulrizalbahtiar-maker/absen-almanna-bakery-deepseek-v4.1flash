@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { buatKlienServer } from "./server";
+import { normalisasiJam } from "../late";
 import type { Profile } from "@/types";
 
 /**
@@ -30,5 +31,11 @@ export const getProfileSaya = cache(async (): Promise<Profile | null> => {
     .eq("id", user.id)
     .single();
 
-  return (data as Profile) ?? null;
+  if (!data) return null;
+  const p = data as Profile;
+  return {
+    ...p,
+    jam_masuk_standar: normalisasiJam(p.jam_masuk_standar) ?? p.jam_masuk_standar,
+    jam_pulang_standar: normalisasiJam(p.jam_pulang_standar) ?? p.jam_pulang_standar,
+  };
 });

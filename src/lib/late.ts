@@ -5,6 +5,23 @@ export function jamKeDetik(jam: string): number {
 }
 
 /**
+ * Normalisasi waktu ke format "HH:MM".
+ * Menerima "HH:MM" dan "HH:MM:SS" (format yang dikembalikan kolom time Supabase).
+ * Mengembalikan null jika format tidak dikenali.
+ */
+export function normalisasiJam(nilai: unknown): string | null {
+  if (typeof nilai !== "string") return null;
+  const cocok = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/.exec(nilai.trim());
+  if (!cocok) return null;
+  return `${cocok[1]}:${cocok[2]}`;
+}
+
+/** Apakah string jam valid dalam format "HH:MM" atau "HH:MM:SS". */
+export function jamValid(nilai: unknown): boolean {
+  return normalisasiJam(nilai) !== null;
+}
+
+/**
  * Menit terlambat = MAX(0, jam_masuk_aktual - jam_masuk_standar).
  * Pembulatan ke bawah, satuan menit, integer.
  */

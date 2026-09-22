@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { buatKlienServer } from "./server";
-import { hitungJamTerlambat } from "../late";
+import { hitungJamTerlambat, normalisasiJam } from "../late";
 import { hitungDendaHarian, menitEfektifTelat } from "../denda";
 import type {
   Attendance,
@@ -10,18 +10,35 @@ import type {
   Settings,
 } from "@/types";
 
+/** Ubah kolom `time` Supabase ("HH:MM:SS") menjadi "HH:MM". */
+function rapikanJamProfile(p: Profile): Profile {
+  return {
+    ...p,
+    jam_masuk_standar: normalisasiJam(p.jam_masuk_standar) ?? p.jam_masuk_standar,
+    jam_pulang_standar: normalisasiJam(p.jam_pulang_standar) ?? p.jam_pulang_standar,
+  };
+}
+
+function rapikanJamSettings(s: Settings): Settings {
+  return {
+    ...s,
+    jam_masuk_default: normalisasiJam(s.jam_masuk_default) ?? s.jam_masuk_default,
+    jam_pulang_default: normalisasiJam(s.jam_pulang_default) ?? s.jam_pulang_default,
+  };
+}
+
 /** Settings id=1. Di-cache per-request. */
 export const ambilSettings = cache(async (): Promise<Settings | null> => {
   const supabase = await buatKlienServer();
   const { data } = await supabase.from("settings").select("*").eq("id", 1).single();
-  return (data as Settings) ?? null;
+  return data ? rapikanJamSettings(data as Settings) : null;
 });
 
 /** Semua profil. Di-cache per-request. */
 export const ambilProfiles = cache(async (): Promise<Profile[]> => {
   const supabase = await buatKlienServer();
   const { data } = await supabase.from("profiles").select("*").order("nama");
-  return (data as Profile[]) ?? [];
+  return ((data as Profile[]) ?? []).map(rapikanJamProfile);
 });
 
 /** Attendance dalam rentang tanggal. Di-cache per-request per rentang. */

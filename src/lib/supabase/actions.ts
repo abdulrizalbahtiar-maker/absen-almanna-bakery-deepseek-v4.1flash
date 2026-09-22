@@ -5,6 +5,7 @@ import { buatKlienServer } from "./server";
 import { buatKlienAdmin } from "./admin";
 import { getUser } from "./auth";
 import { catatLog } from "../activityLog";
+import { normalisasiJam } from "../late";
 
 async function wajibAdmin() {
   const user = await getUser();
@@ -20,8 +21,6 @@ async function wajibAdmin() {
 }
 
 // ---------- Settings ----------
-
-const POLA_JAM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function angkaDalam(nilai: unknown, min: number, maks: number): number | null {
   const n = Number(nilai);
@@ -65,14 +64,14 @@ function bersihkanSettings(patch: Record<string, unknown>) {
     hasil.toleransi_telat_menit = Math.round(t);
   }
   if (patch.jam_masuk_default !== undefined) {
-    if (!POLA_JAM.test(String(patch.jam_masuk_default)))
-      throw new Error("Jam masuk default tidak valid.");
-    hasil.jam_masuk_default = String(patch.jam_masuk_default);
+    const jam = normalisasiJam(patch.jam_masuk_default);
+    if (jam === null) throw new Error("Jam masuk default tidak valid.");
+    hasil.jam_masuk_default = jam;
   }
   if (patch.jam_pulang_default !== undefined) {
-    if (!POLA_JAM.test(String(patch.jam_pulang_default)))
-      throw new Error("Jam pulang default tidak valid.");
-    hasil.jam_pulang_default = String(patch.jam_pulang_default);
+    const jam = normalisasiJam(patch.jam_pulang_default);
+    if (jam === null) throw new Error("Jam pulang default tidak valid.");
+    hasil.jam_pulang_default = jam;
   }
   if (patch.tolak_diluar_radius !== undefined) {
     hasil.tolak_diluar_radius = Boolean(patch.tolak_diluar_radius);
@@ -116,8 +115,9 @@ function bersihkanProfil(patch: Record<string, unknown>) {
       if (n === null) throw new Error(`${kunci} tidak valid.`);
       hasil[kunci] = Math.round(n);
     } else if (kunci === "jam_masuk_standar" || kunci === "jam_pulang_standar") {
-      if (!POLA_JAM.test(String(nilai))) throw new Error(`${kunci} tidak valid.`);
-      hasil[kunci] = String(nilai);
+      const jam = normalisasiJam(nilai);
+      if (jam === null) throw new Error(`${kunci} tidak valid.`);
+      hasil[kunci] = jam;
     } else {
       const teks = String(nilai).trim();
       if (!teks) throw new Error(`${kunci} wajib diisi.`);
